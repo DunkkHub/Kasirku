@@ -3,11 +3,11 @@
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PrintController;
 use App\Http\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', [CustomerController::class, 'index'])->name('home');
 
@@ -27,13 +27,10 @@ Route::prefix('order')->group(function () {
     Route::get('/{orderId}/check', [CheckoutController::class, 'checkOrderStatus'])->name('order.check');
 });
 
-// !important: This route will be using middleware 'auth' and 'verified' in the admin prefix group
-Route::POST('/print', [PrintController::class, 'index'])->name('print.index');
-
 Route::prefix('admin')->middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('admin/dashboard/index');
-    })->name('admin.dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
+
+    Route::post('print', [PrintController::class, 'index'])->name('print.index');
 
     // Resource route for CategoryController
     Route::resource('categories', CategoryController::class);

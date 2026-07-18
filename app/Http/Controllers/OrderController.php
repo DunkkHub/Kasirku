@@ -55,13 +55,13 @@ class OrderController extends Controller
                 'photos' => $item->product->photos->map(function ($photo) {
                   return [
                     'id' => $photo->id,
-                    'photo_url' => $photo->url
+                    'url' => $photo->url
                   ];
                 })
               ],
               'quantity' => $item->quantity,
-              'price' => $item->product->price,
-              'subtotal' => $item->quantity * $item->product->price
+              'price' => $item->price,
+              'subtotal' => $item->subtotal
             ];
           }),
           'payment' => [
@@ -77,8 +77,11 @@ class OrderController extends Controller
 
       $products = Product::with('photos')->get();
 
-      // Return JSON for AJAX requests (infinite scroll)
-      if ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+      // Return JSON for AJAX requests (infinite scroll). Inertia visits also
+      // set X-Requested-With via axios, so exclude them explicitly or every
+      // Inertia navigation to this page would get raw JSON instead of a
+      // proper Inertia response.
+      if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest')) {
         return response()->json([
           'orders' => $orders,
           'products' => $products,
@@ -142,8 +145,8 @@ class OrderController extends Controller
         ];
       }
 
-      // Add tax (10%)
-      $taxAmount = $subtotalAmount * 0.1;
+      // Add tax
+      $taxAmount = $subtotalAmount * config('pos.tax_rate');
       $totalAmount = $subtotalAmount + $taxAmount;
 
       // Create order
@@ -222,7 +225,7 @@ class OrderController extends Controller
   public function edit(Order $order)
   {
     $order->load(['orderItems.product', 'payment']);
-    $products = Product::with('photos')->where('is_active', true)->get();
+    $products = Product::with('photos')->get();
 
     return Inertia::render('admin/orders/edit', [
       'order' => $order,
