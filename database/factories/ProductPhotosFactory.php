@@ -20,7 +20,7 @@ class ProductPhotosFactory extends Factory
     {
         return [
             'product_id' => Product::factory(),
-            'url' => fake()->imageUrl(640, 480, 'food'),
+            'url' => '/images/menu-pizza-tomate.webp',
             'is_primary' => true,
         ];
     }

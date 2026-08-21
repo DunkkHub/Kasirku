@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
 use App\Models\Category;
+use App\Models\Product;
 use App\Models\ProductPhotos;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Throwable;
 
 class ProductController extends Controller
 {
@@ -18,7 +22,7 @@ class ProductController extends Controller
     {
         $query = Product::with(['category', 'photos']);
 
-        // Apply search filter
+        // Filtrer par recherche.
         if ($request->has('search') && $request->search) {
             $searchTerm = $request->search;
             $query->where(function ($q) use ($searchTerm) {
@@ -28,20 +32,19 @@ class ProductController extends Controller
                     });
             });
         }
-        // Apply category filter
+        // Filtrer par catégorie.
         if ($request->has('category') && $request->category && $request->category !== 'all') {
             $query->where('category_id', $request->category);
         }
 
-        // Paginate results
-        $perPage = 12; // Number of products per page
+        $perPage = 12;
         $products = $query->latest()->paginate($perPage);
 
         $categories = Category::all();
 
-        // Return JSON for AJAX requests (infinite scroll) - hanya untuk request dengan page parameter.
-        // Exclude Inertia visits (X-Inertia header) since axios also sets X-Requested-With.
-        if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax()) && $request->has('page') && $request->page > 1) {
+        // Les pages suivantes du défilement infini reçoivent du JSON.
+        // Les visites Inertia restent exclues, car axios envoie aussi X-Requested-With.
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax()) && $request->has('page') && $request->page > 1) {
             return response()->json([
                 'products' => $products->items(),
                 'pagination' => [
@@ -50,21 +53,21 @@ class ProductController extends Controller
                     'per_page' => $products->perPage(),
                     'total' => $products->total(),
                     'has_more_pages' => $products->hasMorePages(),
-                ]
+                ],
             ]);
         }
 
-        // Return Inertia page for initial load and redirects
+        // Rendu initial de la page Inertia.
         return Inertia::render('admin/products/index', [
-            "products" => $products->items(),
-            "categories" => $categories,
-            "pagination" => [
+            'products' => $products->items(),
+            'categories' => $categories,
+            'pagination' => [
                 'current_page' => $products->currentPage(),
                 'last_page' => $products->lastPage(),
                 'per_page' => $products->perPage(),
                 'total' => $products->total(),
                 'has_more_pages' => $products->hasMorePages(),
-            ]
+            ],
         ]);
     }
 
@@ -73,7 +76,7 @@ class ProductController extends Controller
      */
     public function create()
     {
-        abort(404, 'Not Found');
+        abort(404, 'Page introuvable.');
     }
 
     /**
@@ -81,37 +84,43 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
-        // Validation
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'category_id' => 'required|exists:categories,id',
-            'price' => 'required|numeric|min:0',
-            'photos' => 'nullable|array',
-            'photos.*' => 'image|max:5120', // 5MB max per image
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
+            'price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:9999.99'],
+            'is_available' => ['sometimes', 'boolean'],
+            'photos' => ['nullable', 'array', 'max:6'],
+            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096', 'dimensions:max_width=4096,max_height=4096'],
         ]);
 
-        // Create the product
-        $product = Product::create([
-            'name' => $request->name,
-            'category_id' => $request->category_id,
-            'price' => $request->price,
-        ]);
+        $storedPaths = [];
 
-        // Handle photo uploads
-        if ($request->hasFile('photos')) {
-            $photos = $request->file('photos');
-            foreach ($photos as $index => $photo) {
-                $path = $photo->store('products', 'public');
-
-                ProductPhotos::create([
-                    'product_id' => $product->id,
-                    'url' => Storage::url($path),
-                    'is_primary' => $index === 0, // First photo is primary
+        try {
+            DB::transaction(function () use ($request, $validated, &$storedPaths): void {
+                $product = Product::create([
+                    'name' => trim($validated['name']),
+                    'description' => $validated['description'] ?? null,
+                    'category_id' => $validated['category_id'],
+                    'price' => $validated['price'],
+                    'is_available' => $validated['is_available'] ?? true,
                 ]);
-            }
+
+                foreach ($request->file('photos', []) as $index => $photo) {
+                    $storedPaths[] = $photo->store('products', 'public');
+                    ProductPhotos::create([
+                        'product_id' => $product->id,
+                        'url' => Storage::url($storedPaths[array_key_last($storedPaths)]),
+                        'is_primary' => $index === 0,
+                    ]);
+                }
+            }, 3);
+        } catch (Throwable $exception) {
+            Storage::disk('public')->delete($storedPaths);
+            throw $exception;
         }
 
-        return redirect()->route('products.index')->with('success', 'Product created successfully.');
+        return redirect()->route('products.index')->with('success', 'Produit créé.');
     }
 
     /**
@@ -119,7 +128,7 @@ class ProductController extends Controller
      */
     public function show(string $id)
     {
-        abort(404, 'Not Found');
+        abort(404, 'Page introuvable.');
     }
 
     /**
@@ -127,7 +136,7 @@ class ProductController extends Controller
      */
     public function edit(string $id)
     {
-        abort(404, 'Not Found');
+        abort(404, 'Page introuvable.');
     }
 
     /**
@@ -137,57 +146,72 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
 
-        // Validation
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'category_id' => 'required|exists:categories,id',
-            'price' => 'required|numeric|min:0',
-            'photos' => 'nullable|array',
-            'photos.*' => 'image|max:5120', // 5MB max per image
-            'remove_photos' => 'nullable|array',
-            'remove_photos.*' => 'exists:product_photos,id',
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
+            'price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:9999.99'],
+            'is_available' => ['sometimes', 'boolean'],
+            'photos' => ['nullable', 'array', 'max:6'],
+            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096', 'dimensions:max_width=4096,max_height=4096'],
+            'remove_photos' => ['nullable', 'array', 'max:6'],
+            'remove_photos.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('product_photos', 'id')->where('product_id', $product->id),
+            ],
         ]);
 
-        // Update product
-        $product->update([
-            'name' => $request->name,
-            'category_id' => $request->category_id,
-            'price' => $request->price,
-        ]);
+        $removeIds = collect($validated['remove_photos'] ?? []);
+        $remainingCount = $product->photos()->whereNotIn('id', $removeIds)->count();
+        if ($remainingCount + count($request->file('photos', [])) > 6) {
+            throw ValidationException::withMessages(['photos' => 'Un produit peut avoir au maximum 6 photos.']);
+        }
 
-        // Handle photo removal
-        if ($request->has('remove_photos')) {
-            foreach ($request->remove_photos as $photoId) {
-                $photo = ProductPhotos::find($photoId);
-                if ($photo && $photo->product_id === $product->id) {
-                    // Delete file from storage
+        $storedPaths = [];
+        $filesToDelete = [];
+
+        try {
+            DB::transaction(function () use ($request, $validated, $product, $removeIds, &$storedPaths, &$filesToDelete): void {
+                $product->update([
+                    'name' => trim($validated['name']),
+                    'description' => $validated['description'] ?? null,
+                    'category_id' => $validated['category_id'],
+                    'price' => $validated['price'],
+                    'is_available' => $validated['is_available'] ?? $product->is_available,
+                ]);
+
+                foreach ($product->photos()->whereIn('id', $removeIds)->get() as $photo) {
                     $urlPath = parse_url($photo->url, PHP_URL_PATH);
-                    $filePath = str_replace('/storage/', '', $urlPath);
-                    Storage::disk('public')->delete($filePath);
-
-                    // Delete from database
+                    if (str_starts_with((string) $urlPath, '/storage/products/')) {
+                        $filesToDelete[] = str_replace('/storage/', '', $urlPath);
+                    }
                     $photo->delete();
                 }
-            }
+
+                $hasPrimary = $product->photos()->where('is_primary', true)->exists();
+                foreach ($request->file('photos', []) as $photo) {
+                    $storedPaths[] = $photo->store('products', 'public');
+                    ProductPhotos::create([
+                        'product_id' => $product->id,
+                        'url' => Storage::url($storedPaths[array_key_last($storedPaths)]),
+                        'is_primary' => ! $hasPrimary,
+                    ]);
+                    $hasPrimary = true;
+                }
+
+                if (! $hasPrimary && ($first = $product->photos()->first())) {
+                    $first->update(['is_primary' => true]);
+                }
+            }, 3);
+        } catch (Throwable $exception) {
+            Storage::disk('public')->delete($storedPaths);
+            throw $exception;
         }
 
-        // Handle new photo uploads
-        if ($request->hasFile('photos')) {
-            $photos = $request->file('photos');
-            $existingPhotosCount = $product->photos()->count();
+        Storage::disk('public')->delete($filesToDelete);
 
-            foreach ($photos as $index => $photo) {
-                $path = $photo->store('products', 'public');
-
-                ProductPhotos::create([
-                    'product_id' => $product->id,
-                    'url' => Storage::url($path),
-                    'is_primary' => $existingPhotosCount === 0 && $index === 0, // First photo is primary if no existing photos
-                ]);
-            }
-        }
-
-        return redirect()->route('products.index')->with('success', 'Product updated successfully.');
+        return redirect()->route('products.index')->with('success', 'Produit mis à jour.');
     }
 
     /**
@@ -197,17 +221,10 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
 
-        // Delete all associated photos
-        foreach ($product->photos as $photo) {
-            // Delete file from storage
-            $urlPath = parse_url($photo->url, PHP_URL_PATH);
-            $filePath = str_replace('/storage/', '', $urlPath);
-            Storage::disk('public')->delete($filePath);
-        }
-
-        // Delete product (photos will be deleted by cascade)
+        // L’archivage préserve les lignes vendues, leurs prix et leurs photos.
+        $product->update(['is_available' => false]);
         $product->delete();
 
-        return redirect()->route('products.index')->with('success', 'Product deleted successfully.');
+        return redirect()->route('products.index')->with('success', 'Produit archivé.');
     }
 }

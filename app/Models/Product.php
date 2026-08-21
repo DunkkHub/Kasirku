@@ -2,18 +2,39 @@
 
 namespace App\Models;
 
+use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    /** @use HasFactory<\Database\Factories\ProductFactory> */
+    /** @use HasFactory<ProductFactory> */
     use HasFactory;
+
     use HasUuids;
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+    use SoftDeletes;
+
+    protected $fillable = [
+        'name',
+        'description',
+        'category_id',
+        'price',
+        'is_available',
+        'sort_order',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'price' => 'decimal:2',
+            'is_available' => 'boolean',
+            'sort_order' => 'integer',
+        ];
+    }
 
     public function category(): BelongsTo
     {

@@ -9,7 +9,7 @@ test('login screen can be rendered', function () {
 });
 
 test('users can authenticate using the login screen', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->withTestPassword()->create();
 
     $response = $this->post('/login', [
         'email' => $user->email,
@@ -17,11 +17,11 @@ test('users can authenticate using the login screen', function () {
     ]);
 
     $this->assertAuthenticated();
-    $response->assertRedirect(route('admin.dashboard', absolute: false));
+    $response->assertRedirect(route('home', absolute: false));
 });
 
 test('users can not authenticate with invalid password', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->withTestPassword()->create();
 
     $this->post('/login', [
         'email' => $user->email,
@@ -38,4 +38,12 @@ test('users can logout', function () {
 
     $this->assertGuest();
     $response->assertRedirect('/');
+});
+
+test('administrators are redirected to the dashboard after login', function () {
+    $user = User::factory()->admin()->withTestPassword()->create();
+
+    $response = $this->post('/login', ['email' => $user->email, 'password' => 'password']);
+
+    $response->assertRedirect(route('admin.dashboard', absolute: false));
 });

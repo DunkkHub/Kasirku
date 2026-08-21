@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { TAX_RATE } from '@/lib/constants';
-import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import {
@@ -52,12 +51,17 @@ interface Payment {
 
 interface Order {
     id: number;
+    reference?: string | null;
     customer_name: string;
     customer_phone: string | null;
     customer_email: string | null;
     total_amount: number;
     status: string;
     order_type: string;
+    fulfillment_type?: string;
+    table_number?: number | null;
+    delivery_address?: string | null;
+    delivery_instructions?: string | null;
     notes: string | null;
     created_at: string;
     order_items: OrderItem[];
@@ -102,34 +106,79 @@ interface Props {
 
 interface OrderFormData {
     customer_name: string;
+    customer_phone?: string;
+    customer_email?: string;
     payment_method: string;
-    table_number: number;
+    fulfillment_type: string;
+    table_number?: number;
+    delivery_phone?: string;
+    delivery_address?: string;
+    delivery_instructions?: string;
     status?: string; // Order status for editing
+    notes?: string;
     items: { product_id: string; quantity: number }[];
-    [key: string]: any;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Vue d’ensemble',
         href: '/admin/dashboard',
     },
     {
-        title: 'Orders',
+        title: 'Commandes',
         href: '/admin/orders',
     },
 ];
 
-const statusConfig = {
-    pending: { label: 'Pending', variant: 'secondary' as const },
-    completed: { label: 'Completed', variant: 'default' as const },
-    cancelled: { label: 'Cancelled', variant: 'destructive' as const },
+const statusConfig: Record<string, { label: string; variant: 'secondary' | 'default' | 'destructive' | 'outline'; className: string }> = {
+    pending: { label: 'À confirmer', variant: 'secondary', className: 'border-[#d59b3f]/35 bg-[#fff1cc] text-[#80560e]' },
+    preparing: { label: 'En préparation', variant: 'outline', className: 'border-[#d8562a]/30 bg-[#fbe2d5] text-[#963c20]' },
+    ready: { label: 'Prête', variant: 'outline', className: 'border-[#427152]/30 bg-[#e2f0e5] text-[#31583e]' },
+    out_for_delivery: { label: 'En livraison', variant: 'outline', className: 'border-[#526d8c]/30 bg-[#e5edf6] text-[#36516f]' },
+    delivered: { label: 'Livrée', variant: 'default', className: 'border-[#427152]/30 bg-[#dfeee3] text-[#31583e]' },
+    completed: { label: 'Terminée', variant: 'default', className: 'border-[#427152]/30 bg-[#dfeee3] text-[#31583e]' },
+    cancelled: { label: 'Annulée', variant: 'destructive', className: 'border-[#b42318]/25 bg-[#f9dfdc] text-[#8d1f16]' },
 };
 
-const paymentStatusConfig = {
-    pending: { label: 'Pending', variant: 'secondary' as const },
-    completed: { label: 'Completed', variant: 'default' as const },
-    failed: { label: 'Failed', variant: 'destructive' as const },
+const paymentStatusConfig: Record<string, { label: string; variant: 'secondary' | 'default' | 'destructive' | 'outline' }> = {
+    pending: { label: 'En attente', variant: 'secondary' },
+    completed: { label: 'Payé', variant: 'default' },
+    paid: { label: 'Payé', variant: 'default' },
+    failed: { label: 'Échec', variant: 'destructive' },
+};
+
+const fulfillmentLabels: Record<string, string> = {
+    dine_in: 'Sur place',
+    pickup: 'À emporter',
+    delivery: 'Livraison',
+    admin: 'Saisie en caisse',
+    customer: 'Commande en ligne',
+};
+
+const paymentMethodLabels: Record<string, string> = {
+    cash: 'Espèces',
+    card: 'Carte bancaire',
+    digital: 'Paiement en ligne',
+};
+
+const euroFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 });
+
+const formatCurrency = (amount: number) => euroFormatter.format(Number(amount) || 0);
+const formatDate = (dateString: string) => new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(dateString));
+
+const getStatusMeta = (status: string) =>
+    statusConfig[status] ?? { label: status, variant: 'outline' as const, className: 'border-[#d8c9b7] bg-[#f1e6d7] text-[#645449]' };
+
+const getNextAction = (order: Order): { status: string; label: string } | null => {
+    if (order.status === 'pending') return { status: 'preparing', label: 'Lancer la préparation' };
+    if (order.status === 'preparing') return { status: 'ready', label: 'Marquer comme prête' };
+    if (order.status === 'ready') {
+        return (order.fulfillment_type ?? order.order_type) === 'delivery'
+            ? { status: 'out_for_delivery', label: 'Départ en livraison' }
+            : { status: 'completed', label: 'Terminer la commande' };
+    }
+    if (order.status === 'out_for_delivery') return { status: 'delivered', label: 'Marquer comme livrée' };
+    return null;
 };
 
 export default function OrdersIndex({ orders, products, filters }: Props) {
@@ -143,8 +192,8 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-    const [orderToPrint, setOrderToPrint] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     // Infinite scroll state
@@ -160,7 +209,7 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
     const [formData, setFormData] = useState<OrderFormData>({
         customer_name: '',
         payment_method: 'cash',
-        table_number: 0,
+        fulfillment_type: 'pickup',
         items: [],
     });
 
@@ -182,12 +231,6 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
 
     // Since filtering is now done server-side, we don't need client-side filtering
     const filteredOrders = ordersList;
-
-    // Calculate if we should show infinite scroll
-    const shouldShowInfiniteScroll = () => {
-        // Always show if there are more pages from server
-        return hasMorePages;
-    };
 
     // Load more orders function
     const loadMoreOrders = useCallback(async () => {
@@ -225,18 +268,18 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                 setCurrentPage(data.orders.current_page);
                 setHasMorePages(data.orders.current_page < data.orders.last_page);
             }
-        } catch (error) {
-            console.error('Failed to load more orders:', error);
+        } catch {
+            setErrors((current) => ({ ...current, general: 'Impossible de charger davantage de commandes.' }));
         } finally {
             setIsLoadingMore(false);
         }
     }, [currentPage, hasMorePages, isLoadingMore, debouncedSearchTerm, statusFilter]); // Intersection Observer for infinite scroll
     useEffect(() => {
-        if (!shouldShowInfiniteScroll()) return;
+        if (!hasMorePages) return;
 
         const observer = new IntersectionObserver(
             (entries) => {
-                if (entries[0].isIntersecting && shouldShowInfiniteScroll() && !isLoadingMore) {
+                if (entries[0].isIntersecting && hasMorePages && !isLoadingMore) {
                     loadMoreOrders();
                 }
             },
@@ -246,13 +289,14 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
             },
         );
 
-        if (observerRef.current) {
-            observer.observe(observerRef.current);
+        const observerTarget = observerRef.current;
+        if (observerTarget) {
+            observer.observe(observerTarget);
         }
 
         return () => {
-            if (observerRef.current) {
-                observer.unobserve(observerRef.current);
+            if (observerTarget) {
+                observer.unobserve(observerTarget);
             }
         };
     }, [loadMoreOrders, hasMorePages, isLoadingMore, debouncedSearchTerm, statusFilter]);
@@ -289,16 +333,16 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                     setCurrentPage(data.orders.current_page);
                     setHasMorePages(data.orders.current_page < data.orders.last_page);
                 } else {
-                    console.error('Failed to fetch filtered orders:', response.status);
                     // Fallback to empty state if filter request fails
                     setOrdersList([]);
                     setHasMorePages(false);
+                    setErrors((current) => ({ ...current, general: 'Impossible de filtrer les commandes.' }));
                 }
-            } catch (error) {
-                console.error('Failed to load filtered orders:', error);
+            } catch {
                 // Fallback to empty state if network error
                 setOrdersList([]);
                 setHasMorePages(false);
+                setErrors((current) => ({ ...current, general: 'La recherche est momentanément indisponible.' }));
             }
         };
 
@@ -306,20 +350,12 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
         loadInitialData();
     }, [debouncedSearchTerm, statusFilter]);
 
-    // Auto print order when orderToPrint is set
-    useEffect(() => {
-        if (orderToPrint) {
-            handlePrint(orderToPrint);
-            setOrderToPrint(null); // Reset after printing
-        }
-    }, [orderToPrint]);
-
     // Reset form
     const resetForm = () => {
         setFormData({
             customer_name: '',
             payment_method: 'cash',
-            table_number: 0,
+            fulfillment_type: 'pickup',
             status: 'pending', // Default order status
             items: [],
         });
@@ -328,7 +364,7 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
     };
 
     // Handle form input changes
-    const handleInputChange = (field: keyof OrderFormData, value: any) => {
+    const handleInputChange = <K extends keyof OrderFormData>(field: K, value: OrderFormData[K]) => {
         setFormData((prev) => ({
             ...prev,
             [field]: value,
@@ -393,17 +429,17 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
     // Handle create order
     const handleCreate = async () => {
         if (cart.length === 0) {
-            setErrors({ items: 'Please add at least one product to the cart' });
+            setErrors({ items: 'Ajoutez au moins un produit à la commande.' });
             return;
         }
 
         if (!formData.customer_name.trim()) {
-            setErrors({ customer_name: 'Customer name is required' });
+            setErrors({ customer_name: 'Le nom du client est obligatoire.' });
             return;
         }
 
         if (!formData.status) {
-            setErrors({ status: 'Order status is required' });
+            setErrors({ status: 'Le statut de la commande est obligatoire.' });
             return;
         }
 
@@ -435,55 +471,22 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
             });
 
             if (response.ok) {
-                console.log('Order created successfully');
+                const createdOrder = await response.json();
                 setIsCreateModalOpen(false);
-
-                // Create a mock order for printing based on cart data
-                const mockOrder: Order = {
-                    id: Date.now(), // temporary ID
-                    customer_name: formData.customer_name,
-                    customer_phone: null, // Not stored in database
-                    customer_email: null, // Not stored in database
-                    total_amount: getTotalAmount(),
-                    status: formData.status || 'pending',
-                    order_type: 'admin',
-                    notes: null, // Not stored in database
-                    created_at: new Date().toISOString(),
-                    order_items: cart.map((item, index) => ({
-                        id: index + 1,
-                        product: {
-                            id: item.product.id,
-                            name: item.product.name,
-                            photos: item.product.photos.map((p) => ({ id: p.id, url: p.url })),
-                        },
-                        quantity: item.quantity,
-                        price: item.product.price,
-                        subtotal: item.subtotal,
-                    })),
-                    payment: {
-                        id: Date.now(),
-                        method: formData.payment_method,
-                        status: 'completed',
-                        amount: getTotalAmount(),
-                        transaction_id: `TXN-${Date.now()}`,
-                        paid_at: new Date().toISOString(),
-                    },
-                };
-
-                // Set order to print
-                setOrderToPrint(mockOrder);
                 resetForm();
+
+                if (typeof createdOrder.order_internal_id === 'number') {
+                    await handlePrint(createdOrder.order_internal_id);
+                }
 
                 // Reload to get updated data
                 window.location.reload();
             } else {
                 const errorData = await response.json();
-                console.error('Order creation failed:', errorData);
-                setErrors(errorData.errors || { general: 'Failed to create order' });
+                setErrors(errorData.errors || { general: 'Impossible de créer la commande.' });
             }
-        } catch (error) {
-            console.error('Network error:', error);
-            setErrors({ general: 'Network error occurred' });
+        } catch {
+            setErrors({ general: 'Une erreur réseau est survenue.' });
         } finally {
             setIsLoading(false);
         }
@@ -511,7 +514,6 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
             });
 
             if (response.ok) {
-                console.log('Order updated successfully');
                 setIsEditModalOpen(false);
                 setSelectedOrder(null);
                 resetForm();
@@ -520,12 +522,10 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                 window.location.reload();
             } else {
                 const errorData = await response.json();
-                console.error('Order update failed:', errorData);
-                setErrors(errorData.errors || { general: 'Failed to update order' });
+                setErrors(errorData.errors || { general: 'Impossible de mettre à jour la commande.' });
             }
-        } catch (error) {
-            console.error('Network error:', error);
-            setErrors({ general: 'Network error occurred' });
+        } catch {
+            setErrors({ general: 'Une erreur réseau est survenue.' });
         } finally {
             setIsLoading(false);
         }
@@ -551,17 +551,16 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
             });
 
             if (response.ok) {
-                console.log('Order deleted successfully');
                 setIsDeleteModalOpen(false);
                 setSelectedOrder(null);
 
                 // Reload to get updated data
                 window.location.reload();
             } else {
-                console.error('Order deletion failed:', response.status);
+                setErrors((current) => ({ ...current, general: 'Impossible de supprimer la commande.' }));
             }
-        } catch (error) {
-            console.error('Network error:', error);
+        } catch {
+            setErrors((current) => ({ ...current, general: 'Une erreur réseau est survenue.' }));
         } finally {
             setIsLoading(false);
         }
@@ -569,6 +568,7 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
 
     // Handle status update
     const handleStatusUpdate = (orderId: number, newStatus: string) => {
+        setStatusUpdatingId(orderId);
         router.post(
             `/admin/orders/${orderId}/status`,
             {
@@ -579,6 +579,10 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                 onSuccess: () => {
                     router.reload({ only: ['orders'] });
                 },
+                onError: () => {
+                    setErrors((current) => ({ ...current, general: 'Le statut n’a pas pu être mis à jour.' }));
+                },
+                onFinish: () => setStatusUpdatingId(null),
             },
         );
     };
@@ -589,7 +593,11 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
         setFormData({
             customer_name: order.customer_name,
             payment_method: order.payment.method,
-            table_number: 0, // Default for existing orders
+            fulfillment_type: order.fulfillment_type ?? order.order_type ?? 'pickup',
+            table_number: order.table_number ?? undefined,
+            delivery_phone: order.customer_phone ?? undefined,
+            delivery_address: order.delivery_address ?? undefined,
+            delivery_instructions: order.delivery_instructions ?? undefined,
             status: order.status, // Order status, not payment status
             items: [],
         });
@@ -609,66 +617,54 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
     };
 
     // Handle print order
-    const handlePrint = async (order: Order) => {
-        const items =
-            order.order_items?.map((item) => ({
-                name: item.product?.name || 'Unknown Product',
-                quantity: item.quantity,
-                price: item.price,
-            })) || [];
-
-        const paid = order.payment?.amount || order.total_amount || 0;
-
+    const handlePrint = async (orderId: number) => {
         try {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-            const response = await fetch('/admin/print', {
+            const response = await fetch(`/admin/orders/${orderId}/print`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     Accept: 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({
-                    items: items,
-                    paid: paid,
-                }),
             });
 
-            if (response.ok) {
-                console.log('Print request successful');
-            } else {
-                console.error('Print request failed:', response.statusText);
+            if (!response.ok) {
+                setErrors((current) => ({ ...current, print: 'Le ticket n’a pas pu être imprimé. Vérifiez l’imprimante puis réessayez.' }));
             }
-        } catch (error) {
-            console.error('Error printing order:', error);
+        } catch {
+            setErrors((current) => ({ ...current, print: 'L’imprimante est momentanément indisponible.' }));
         }
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Orders Management" />
+            <Head title="Gestion des commandes" />
 
-            <div className="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-6">
+            <main className="flex min-h-full flex-1 flex-col gap-6 bg-[#f6efe4] p-4 sm:p-6 lg:p-8">
                 {/* Header */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 rounded-[1.75rem] bg-[#211812] px-5 py-6 text-[#fff7e9] shadow-[0_20px_48px_rgba(35,22,14,0.14)] sm:flex-row sm:items-center sm:justify-between sm:px-7">
                     <div>
-                        <h1 className="text-2xl font-semibold">Orders Management</h1>
-                        <p className="text-muted-foreground">Manage customer orders and create new orders</p>
+                        <p className="text-xs font-black tracking-[0.18em] text-[#ef9367] uppercase">Service en cours</p>
+                        <h1 className="mt-2 text-3xl font-black tracking-[-0.035em]">Commandes</h1>
+                        <p className="mt-2 text-sm text-[#d8c7b4]">Pilotez les commandes de la prise en charge jusqu’à la remise au client.</p>
                     </div>
 
                     <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
                         <DialogTrigger asChild>
-                            <Button onClick={() => resetForm()}>
+                            <Button
+                                onClick={() => resetForm()}
+                                className="min-h-11 rounded-xl bg-[#d8562a] px-5 font-bold text-white hover:bg-[#ef6840] focus-visible:ring-2 focus-visible:ring-[#ffd6bc]"
+                            >
                                 <PlusIcon />
-                                Add Order
+                                Nouvelle commande
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
+                        <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto border-[#ddcfbd] bg-[#fffaf2]">
                             <DialogHeader>
-                                <DialogTitle>Create New Order</DialogTitle>
-                                <DialogDescription>Create a new order for walk-in customers</DialogDescription>
+                                <DialogTitle>Créer une commande</DialogTitle>
+                                <DialogDescription>Enregistrez une commande prise sur place, à emporter ou en livraison.</DialogDescription>
                             </DialogHeader>
 
                             <div className="grid grid-cols-1 gap-6">
@@ -676,9 +672,9 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                 <div className="">
                                     <Card>
                                         <CardHeader>
-                                            <CardTitle>Select Products</CardTitle>
+                                            <CardTitle>Sélection des produits</CardTitle>
                                             <Input
-                                                placeholder="Search products..."
+                                                placeholder="Rechercher un produit…"
                                                 value={productSearchTerm}
                                                 onChange={(e) => setProductSearchTerm(e.target.value)}
                                             />
@@ -686,10 +682,12 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                         <CardContent>
                                             <div className="grid max-h-64 grid-cols-1 gap-4 overflow-y-auto md:grid-cols-2">
                                                 {filteredProducts.map((product) => (
-                                                    <div
+                                                    <button
+                                                        type="button"
                                                         key={product.id}
-                                                        className="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-gray-50 hover:text-black"
+                                                        className="w-full cursor-pointer rounded-xl border border-[#ddcfbd] p-3 text-left transition-colors hover:bg-[#f6eadb] focus-visible:ring-2 focus-visible:ring-[#d8562a] focus-visible:outline-none"
                                                         onClick={() => addToCart(product)}
+                                                        aria-label={`Ajouter ${product.name} au panier`}
                                                     >
                                                         <div className="flex items-center gap-3">
                                                             {product.photos.length > 0 ? (
@@ -697,6 +695,8 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                                                     src={product.photos[0].url}
                                                                     alt={product.name}
                                                                     className="h-12 w-12 rounded object-cover"
+                                                                    loading="lazy"
+                                                                    decoding="async"
                                                                 />
                                                             ) : (
                                                                 <div className="flex h-12 w-12 items-center justify-center rounded bg-gray-200">
@@ -705,13 +705,11 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                                             )}
                                                             <div className="flex-1">
                                                                 <h4 className="text-sm font-medium">{product.name}</h4>
-                                                                <p className="text-sm font-semibold text-green-600">
-                                                                    {formatCurrency(product.price)}
-                                                                </p>
+                                                                <p className="text-sm font-bold text-[#b84523]">{formatCurrency(product.price)}</p>
                                                             </div>
                                                             <PlusIcon className="h-4 w-4 text-gray-400" />
                                                         </div>
-                                                    </div>
+                                                    </button>
                                                 ))}
                                             </div>
                                         </CardContent>
@@ -725,12 +723,12 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                         <CardHeader>
                                             <CardTitle className="flex items-center text-base">
                                                 <ShoppingCart className="mr-2 h-4 w-4" />
-                                                Cart ({cart.length})
+                                                Panier ({cart.length})
                                             </CardTitle>
                                         </CardHeader>
                                         <CardContent>
                                             {cart.length === 0 ? (
-                                                <p className="py-2 text-center text-sm text-muted-foreground">Cart is empty</p>
+                                                <p className="py-3 text-center text-sm text-muted-foreground">Le panier est vide.</p>
                                             ) : (
                                                 <div className="space-y-3">
                                                     {cart.map((item) => (
@@ -746,7 +744,8 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                                                     type="button"
                                                                     variant="outline"
                                                                     size="sm"
-                                                                    className="h-6 w-6 p-0"
+                                                                    className="size-11 p-0"
+                                                                    aria-label={`Retirer une unité de ${item.product.name}`}
                                                                     onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
                                                                 >
                                                                     <Minus className="h-3 w-3" />
@@ -756,7 +755,8 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                                                     type="button"
                                                                     variant="outline"
                                                                     size="sm"
-                                                                    className="h-6 w-6 p-0"
+                                                                    className="size-11 p-0"
+                                                                    aria-label={`Ajouter une unité de ${item.product.name}`}
                                                                     onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
                                                                 >
                                                                     <PlusIcon className="h-3 w-3" />
@@ -770,15 +770,15 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
 
                                                     <div className="space-y-2 border-t pt-3">
                                                         <div className="flex items-center justify-between text-sm">
-                                                            <span>Subtotal:</span>
+                                                            <span>Sous-total</span>
                                                             <span>{formatCurrency(getSubtotal())}</span>
                                                         </div>
                                                         <div className="flex items-center justify-between text-sm">
-                                                            <span>Tax ({TAX_RATE * 100}%):</span>
+                                                            <span>Taxe ({TAX_RATE * 100} %)</span>
                                                             <span>{formatCurrency(getTaxAmount())}</span>
                                                         </div>
                                                         <div className="flex items-center justify-between border-t pt-2 text-sm font-bold">
-                                                            <span>Total:</span>
+                                                            <span>Total</span>
                                                             <span>{formatCurrency(getTotalAmount())}</span>
                                                         </div>
                                                     </div>
@@ -790,52 +790,118 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                     {/* Customer Form */}
                                     <Card>
                                         <CardHeader>
-                                            <CardTitle className="text-base">Customer Information</CardTitle>
+                                            <CardTitle className="text-base">Informations de service</CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-3">
                                             <div>
                                                 <Label htmlFor="customer_name" className="text-sm">
-                                                    Customer Name *
+                                                    Nom du client *
                                                 </Label>
                                                 <Input
                                                     id="customer_name"
                                                     value={formData.customer_name}
                                                     onChange={(e) => handleInputChange('customer_name', e.target.value)}
-                                                    className="h-8"
+                                                    className="min-h-11"
                                                 />
                                                 {errors.customer_name && <p className="mt-1 text-xs text-red-500">{errors.customer_name}</p>}
                                             </div>
 
                                             <div>
+                                                <Label htmlFor="fulfillment_type" className="text-sm">
+                                                    Mode de service *
+                                                </Label>
+                                                <Select
+                                                    value={formData.fulfillment_type}
+                                                    onValueChange={(value) => handleInputChange('fulfillment_type', value)}
+                                                >
+                                                    <SelectTrigger id="fulfillment_type" className="min-h-11">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="dine_in">Sur place</SelectItem>
+                                                        <SelectItem value="pickup">À emporter</SelectItem>
+                                                        <SelectItem value="delivery">Livraison</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            {formData.fulfillment_type === 'dine_in' && (
+                                                <div>
+                                                    <Label htmlFor="table_number" className="text-sm">
+                                                        Numéro de table *
+                                                    </Label>
+                                                    <Input
+                                                        id="table_number"
+                                                        type="number"
+                                                        min={1}
+                                                        max={999}
+                                                        value={formData.table_number ?? ''}
+                                                        onChange={(e) =>
+                                                            handleInputChange('table_number', e.target.value ? Number(e.target.value) : undefined)
+                                                        }
+                                                        className="min-h-11"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {formData.fulfillment_type === 'delivery' && (
+                                                <div className="space-y-3 rounded-xl border border-[#ddcfbd] bg-[#f8eee1] p-3">
+                                                    <div>
+                                                        <Label htmlFor="delivery_phone" className="text-sm">
+                                                            Téléphone *
+                                                        </Label>
+                                                        <Input
+                                                            id="delivery_phone"
+                                                            value={formData.delivery_phone ?? ''}
+                                                            onChange={(e) => handleInputChange('delivery_phone', e.target.value)}
+                                                            className="min-h-11"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <Label htmlFor="delivery_address" className="text-sm">
+                                                            Adresse de livraison *
+                                                        </Label>
+                                                        <Textarea
+                                                            id="delivery_address"
+                                                            value={formData.delivery_address ?? ''}
+                                                            onChange={(e) => handleInputChange('delivery_address', e.target.value)}
+                                                            rows={3}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div>
                                                 <Label htmlFor="payment_method" className="text-sm">
-                                                    Payment Method *
+                                                    Moyen de paiement *
                                                 </Label>
                                                 <Select
                                                     value={formData.payment_method}
                                                     onValueChange={(value) => handleInputChange('payment_method', value)}
                                                 >
-                                                    <SelectTrigger className="h-8">
+                                                    <SelectTrigger className="min-h-11">
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="cash">Cash</SelectItem>
-                                                        <SelectItem value="digital">Digital</SelectItem>
+                                                        <SelectItem value="cash">Espèces</SelectItem>
+                                                        <SelectItem value="card">Carte bancaire</SelectItem>
+                                                        <SelectItem value="digital">Paiement en ligne</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
 
                                             <div>
                                                 <Label htmlFor="order_status" className="text-sm">
-                                                    Order Status *
+                                                    Statut initial *
                                                 </Label>
                                                 <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
-                                                    <SelectTrigger className="h-8">
+                                                    <SelectTrigger className="min-h-11">
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="pending">Pending (Belum siap)</SelectItem>
-                                                        <SelectItem value="completed">Completed (Siap diambil)</SelectItem>
-                                                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                                                        <SelectItem value="pending">À confirmer</SelectItem>
+                                                        <SelectItem value="preparing">En préparation</SelectItem>
+                                                        <SelectItem value="ready">Prête</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -847,109 +913,157 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                             {errors.items && <p className="text-sm text-red-600">{errors.items}</p>}
 
                             <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={isLoading}>
-                                    Cancel
+                                <Button variant="outline" className="min-h-11" onClick={() => setIsCreateModalOpen(false)} disabled={isLoading}>
+                                    Annuler
                                 </Button>
-                                <Button onClick={handleCreate} disabled={isLoading || cart.length === 0 || !formData.customer_name}>
-                                    {isLoading ? 'Creating...' : 'Create Order'}
+                                <Button
+                                    className="min-h-11"
+                                    onClick={handleCreate}
+                                    disabled={isLoading || cart.length === 0 || !formData.customer_name}
+                                >
+                                    {isLoading ? 'Création…' : 'Créer la commande'}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
                 </div>
 
+                {(errors.general || errors.print) && (
+                    <div
+                        role="alert"
+                        aria-live="polite"
+                        className="rounded-xl border border-[#b42318]/25 bg-[#f9dfdc] px-4 py-3 text-sm font-semibold text-[#8d1f16]"
+                    >
+                        {errors.general ?? errors.print}
+                    </div>
+                )}
+
                 {/* Filters */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                    <div className="relative max-w-md">
+                <div className="flex flex-col gap-3 rounded-2xl border border-[#ddcfbd] bg-[#fffaf2] p-4 shadow-[0_8px_24px_rgba(64,39,23,0.04)] sm:flex-row sm:items-center">
+                    <div className="relative min-w-0 flex-1 sm:max-w-md">
                         <SearchIcon className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
-                        <Input placeholder="Search orders..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                        <Input
+                            aria-label="Rechercher une commande"
+                            placeholder="Rechercher par client ou référence…"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="min-h-11 pl-10"
+                        />
                     </div>
 
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="All Status" />
+                        <SelectTrigger className="min-h-11 w-full sm:w-[220px]">
+                            <SelectValue placeholder="Tous les statuts" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                            <SelectItem value="all">Tous les statuts</SelectItem>
+                            <SelectItem value="pending">À confirmer</SelectItem>
+                            <SelectItem value="preparing">En préparation</SelectItem>
+                            <SelectItem value="ready">Prête</SelectItem>
+                            <SelectItem value="out_for_delivery">En livraison</SelectItem>
+                            <SelectItem value="delivered">Livrée</SelectItem>
+                            <SelectItem value="completed">Terminée</SelectItem>
+                            <SelectItem value="cancelled">Annulée</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
 
                 {/* Orders Grid */}
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {filteredOrders.map((order) => (
-                        <Card key={order.id} className="overflow-hidden">
-                            <CardHeader className="pb-2">
-                                <div className="flex items-center justify-between">
-                                    <CardTitle className="text-lg">Order #{order.id}</CardTitle>
-                                    <Badge variant={statusConfig[order.status as keyof typeof statusConfig]?.variant}>
-                                        {statusConfig[order.status as keyof typeof statusConfig]?.label}
-                                    </Badge>
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium">{order.customer_name}</p>
-                                    {order.customer_phone && <p className="text-xs text-muted-foreground">{order.customer_phone}</p>}
-                                    <p className="text-lg font-semibold text-green-600">{formatCurrency(order.total_amount)}</p>
-                                </div>
-                            </CardHeader>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {filteredOrders.map((order) => {
+                        const status = getStatusMeta(order.status);
+                        const nextAction = getNextAction(order);
+                        const fulfillment = order.fulfillment_type ?? order.order_type;
+                        return (
+                            <Card
+                                key={order.id}
+                                className="overflow-hidden rounded-2xl border-[#ddcfbd] bg-[#fffaf2] shadow-[0_10px_28px_rgba(64,39,23,0.05)] transition-transform hover:-translate-y-0.5 motion-reduce:transform-none"
+                            >
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-lg font-black text-[#2d211a]">
+                                            {order.reference ?? `Commande #${order.id}`}
+                                        </CardTitle>
+                                        <Badge variant={status.variant} className={status.className}>
+                                            {status.label}
+                                        </Badge>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-medium">{order.customer_name}</p>
+                                        {order.customer_phone && <p className="text-xs text-muted-foreground">{order.customer_phone}</p>}
+                                        <p className="text-xl font-black text-[#b84523] tabular-nums">{formatCurrency(order.total_amount)}</p>
+                                    </div>
+                                </CardHeader>
 
-                            <CardContent className="pt-0">
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between text-xs">
-                                        <span className="text-muted-foreground">Payment:</span>
-                                        <Badge
-                                            variant={paymentStatusConfig[order.payment.status as keyof typeof paymentStatusConfig]?.variant}
-                                            className="text-xs"
+                                <CardContent className="pt-0">
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="text-muted-foreground">Paiement</span>
+                                            <Badge
+                                                variant={paymentStatusConfig[order.payment.status as keyof typeof paymentStatusConfig]?.variant}
+                                                className="text-xs"
+                                            >
+                                                {paymentStatusConfig[order.payment.status]?.label ?? order.payment.status}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="text-muted-foreground">Service</span>
+                                            <Badge variant="outline" className="text-xs">
+                                                {fulfillmentLabels[fulfillment] ?? fulfillment}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                            <Calendar className="h-3 w-3" />
+                                            <span>{formatDate(order.created_at)}</span>
+                                        </div>
+                                    </div>
+
+                                    {nextAction && (
+                                        <Button
+                                            className="mt-4 min-h-11 w-full rounded-xl bg-[#d8562a] font-bold hover:bg-[#c94720]"
+                                            onClick={() => handleStatusUpdate(order.id, nextAction.status)}
+                                            disabled={statusUpdatingId === order.id}
                                         >
-                                            {paymentStatusConfig[order.payment.status as keyof typeof paymentStatusConfig]?.label}
-                                        </Badge>
-                                    </div>
-                                    <div className="flex items-center justify-between text-xs">
-                                        <span className="text-muted-foreground">Type:</span>
-                                        <Badge variant="outline" className="text-xs">
-                                            {order.order_type === 'admin' ? 'Admin' : 'Customer'}
-                                        </Badge>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                        <Calendar className="h-3 w-3" />
-                                        <span>{formatDate(order.created_at)}</span>
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 flex gap-2">
-                                    <Button variant="outline" size="sm" className="flex-1" onClick={() => openViewModal(order)}>
-                                        <EyeIcon className="h-4 w-4" />
-                                        View
-                                    </Button>
-                                    <Button variant="outline" size="sm" className="flex-1" onClick={() => openEditModal(order)}>
-                                        <EditIcon className="h-4 w-4" />
-                                        Edit
-                                    </Button>
-                                    {order.status === 'cancelled' && (
-                                        <Button variant="destructive" size="sm" className="flex-1" onClick={() => openDeleteModal(order)}>
-                                            <TrashIcon className="h-4 w-4" />
-                                            Delete
+                                            {statusUpdatingId === order.id ? 'Mise à jour…' : nextAction.label}
                                         </Button>
                                     )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                                    <div className="mt-3 grid grid-cols-2 gap-2">
+                                        <Button variant="outline" size="sm" className="min-h-11" onClick={() => openViewModal(order)}>
+                                            <EyeIcon className="h-4 w-4" />
+                                            Détails
+                                        </Button>
+                                        <Button variant="outline" size="sm" className="min-h-11" onClick={() => openEditModal(order)}>
+                                            <EditIcon className="h-4 w-4" />
+                                            Modifier
+                                        </Button>
+                                        {order.status === 'cancelled' && (
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                className="col-span-2 min-h-11"
+                                                onClick={() => openDeleteModal(order)}
+                                            >
+                                                <TrashIcon className="h-4 w-4" />
+                                                Supprimer
+                                            </Button>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
                 </div>
 
                 {/* Infinite Scroll Observer */}
-                {shouldShowInfiniteScroll() && (
+                {hasMorePages && (
                     <div ref={observerRef} className="flex justify-center py-8">
                         {isLoadingMore ? (
                             <div className="flex items-center gap-2">
                                 <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-gray-900"></div>
-                                <span className="text-muted-foreground">Loading more orders...</span>
+                                <span className="text-muted-foreground">Chargement des commandes…</span>
                             </div>
                         ) : (
-                            <div className="text-muted-foreground">Scroll down to load more orders</div>
+                            <div className="text-muted-foreground">Faites défiler pour afficher la suite</div>
                         )}
                     </div>
                 )}
@@ -959,8 +1073,8 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                     <div className="flex justify-center py-8">
                         <div className="text-center text-muted-foreground">
                             <div className="mx-auto mb-4 h-px w-24 bg-border"></div>
-                            <p>You've reached the end of the orders list</p>
-                            <p className="mt-1 text-sm">Showing {filteredOrders.length} orders</p>
+                            <p>Toutes les commandes sont affichées.</p>
+                            <p className="mt-1 text-sm">{filteredOrders.length} commande(s)</p>
                         </div>
                     </div>
                 )}
@@ -969,11 +1083,11 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                 {filteredOrders.length === 0 && !isLoadingMore && (
                     <div className="py-12 text-center">
                         <Package className="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">No orders found</h3>
+                        <h3 className="mt-2 text-sm font-bold text-[#31241d]">Aucune commande trouvée</h3>
                         <p className="mt-1 text-sm text-gray-500">
                             {searchTerm || (statusFilter && statusFilter !== '' && statusFilter !== 'all')
-                                ? 'Try adjusting your search criteria'
-                                : 'Get started by creating a new order'}
+                                ? 'Modifiez la recherche ou le filtre sélectionné.'
+                                : 'Créez la première commande pour commencer.'}
                         </p>
                     </div>
                 )}
@@ -982,8 +1096,8 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                 <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
                     <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
                         <DialogHeader>
-                            <DialogTitle>Order Details #{selectedOrder?.id}</DialogTitle>
-                            <DialogDescription>Complete order and customer information</DialogDescription>
+                            <DialogTitle>Détails de la commande {selectedOrder?.reference ?? `#${selectedOrder?.id}`}</DialogTitle>
+                            <DialogDescription>Produits, service, client et règlement.</DialogDescription>
                         </DialogHeader>
 
                         {selectedOrder && (
@@ -994,7 +1108,7 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                         <CardHeader>
                                             <CardTitle className="flex items-center">
                                                 <Package className="mr-2 h-5 w-5" />
-                                                Order Items
+                                                Produits commandés
                                             </CardTitle>
                                         </CardHeader>
                                         <CardContent>
@@ -1006,6 +1120,8 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                                                 src={item.product.photos[0].url}
                                                                 alt={item.product.name}
                                                                 className="h-12 w-12 rounded object-cover"
+                                                                loading="lazy"
+                                                                decoding="async"
                                                             />
                                                         ) : (
                                                             <div className="flex h-12 w-12 items-center justify-center rounded bg-gray-200">
@@ -1033,15 +1149,15 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                                         return (
                                                             <>
                                                                 <div className="flex items-center justify-between text-sm">
-                                                                    <span>Subtotal:</span>
+                                                                    <span>Sous-total</span>
                                                                     <span>{formatCurrency(orderSubtotal)}</span>
                                                                 </div>
                                                                 <div className="flex items-center justify-between text-sm">
-                                                                    <span>Pajak ({TAX_RATE * 100}%):</span>
+                                                                    <span>Taxe ({TAX_RATE * 100} %)</span>
                                                                     <span>{formatCurrency(orderTax)}</span>
                                                                 </div>
                                                                 <div className="flex items-center justify-between border-t pt-2 text-lg font-bold">
-                                                                    <span>Total:</span>
+                                                                    <span>Total</span>
                                                                     <span>{formatCurrency(selectedOrder.total_amount)}</span>
                                                                 </div>
                                                             </>
@@ -1058,7 +1174,7 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                             <CardHeader>
                                                 <CardTitle className="flex items-center">
                                                     <FileText className="mr-2 h-5 w-5" />
-                                                    Order Notes
+                                                    Notes de commande
                                                 </CardTitle>
                                             </CardHeader>
                                             <CardContent>
@@ -1073,19 +1189,25 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                     {/* Order Status */}
                                     <Card>
                                         <CardHeader>
-                                            <CardTitle>Order Status</CardTitle>
+                                            <CardTitle>Suivi de la commande</CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-3">
                                             <div className="flex items-center justify-between">
-                                                <span>Status:</span>
-                                                <Badge variant={statusConfig[selectedOrder.status as keyof typeof statusConfig]?.variant}>
-                                                    {statusConfig[selectedOrder.status as keyof typeof statusConfig]?.label}
+                                                <span>Statut</span>
+                                                <Badge
+                                                    variant={getStatusMeta(selectedOrder.status).variant}
+                                                    className={getStatusMeta(selectedOrder.status).className}
+                                                >
+                                                    {getStatusMeta(selectedOrder.status).label}
                                                 </Badge>
                                             </div>
 
                                             <div className="flex items-center justify-between">
-                                                <span>Type:</span>
-                                                <Badge variant="outline">{selectedOrder.order_type === 'admin' ? 'Admin' : 'Customer'}</Badge>
+                                                <span>Service</span>
+                                                <Badge variant="outline">
+                                                    {fulfillmentLabels[selectedOrder.fulfillment_type ?? selectedOrder.order_type] ??
+                                                        selectedOrder.order_type}
+                                                </Badge>
                                             </div>
 
                                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1098,7 +1220,7 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                     {/* Customer Info */}
                                     <Card>
                                         <CardHeader>
-                                            <CardTitle>Customer Information</CardTitle>
+                                            <CardTitle>Informations client</CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-2">
                                             <div>
@@ -1107,7 +1229,7 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
 
                                             {selectedOrder.customer_phone && (
                                                 <div className="text-sm">
-                                                    <span className="text-muted-foreground">Phone: </span>
+                                                    <span className="text-muted-foreground">Téléphone : </span>
                                                     <span>{selectedOrder.customer_phone}</span>
                                                 </div>
                                             )}
@@ -1126,39 +1248,39 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                                         <CardHeader>
                                             <CardTitle className="flex items-center">
                                                 <CreditCard className="mr-2 h-5 w-5" />
-                                                Payment
+                                                Paiement
                                             </CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <span>Status:</span>
+                                                <span>Statut</span>
                                                 <Badge
                                                     variant={
                                                         paymentStatusConfig[selectedOrder.payment.status as keyof typeof paymentStatusConfig]?.variant
                                                     }
                                                 >
-                                                    {paymentStatusConfig[selectedOrder.payment.status as keyof typeof paymentStatusConfig]?.label}
+                                                    {paymentStatusConfig[selectedOrder.payment.status]?.label ?? selectedOrder.payment.status}
                                                 </Badge>
                                             </div>
 
                                             <div className="flex items-center justify-between">
-                                                <span>Method:</span>
-                                                <span className="capitalize">{selectedOrder.payment.method}</span>
+                                                <span>Moyen</span>
+                                                <span>{paymentMethodLabels[selectedOrder.payment.method] ?? selectedOrder.payment.method}</span>
                                             </div>
 
                                             <div className="flex items-center justify-between">
-                                                <span>Amount:</span>
+                                                <span>Montant</span>
                                                 <span className="font-medium">{formatCurrency(selectedOrder.payment.amount)}</span>
                                             </div>
 
                                             <div className="text-xs text-muted-foreground">
-                                                <p>Transaction ID:</p>
+                                                <p>Identifiant de transaction</p>
                                                 <p className="font-mono">{selectedOrder.payment.transaction_id}</p>
                                             </div>
 
                                             {selectedOrder.payment.paid_at && (
                                                 <div className="text-xs text-muted-foreground">
-                                                    <p>Paid at:</p>
+                                                    <p>Payé le</p>
                                                     <p>{formatDate(selectedOrder.payment.paid_at)}</p>
                                                 </div>
                                             )}
@@ -1169,13 +1291,13 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                         )}
 
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
-                                Close
+                            <Button variant="outline" className="min-h-11" onClick={() => setIsViewModalOpen(false)}>
+                                Fermer
                             </Button>
                             {selectedOrder && (
-                                <Button onClick={() => handlePrint(selectedOrder)}>
+                                <Button className="min-h-11" onClick={() => handlePrint(selectedOrder.id)}>
                                     <Printer className="mr-2 h-4 w-4" />
-                                    Print Receipt
+                                    Imprimer le ticket
                                 </Button>
                             )}
                         </DialogFooter>
@@ -1186,13 +1308,13 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                 <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
                     <DialogContent className="max-w-md">
                         <DialogHeader>
-                            <DialogTitle>Edit Order #{selectedOrder?.id}</DialogTitle>
-                            <DialogDescription>Update customer information and order status</DialogDescription>
+                            <DialogTitle>Modifier la commande {selectedOrder?.reference ?? `#${selectedOrder?.id}`}</DialogTitle>
+                            <DialogDescription>Mettez à jour le client et faites avancer la commande.</DialogDescription>
                         </DialogHeader>
 
                         <div className="space-y-4">
                             <div>
-                                <Label htmlFor="edit_customer_name">Customer Name *</Label>
+                                <Label htmlFor="edit_customer_name">Nom du client *</Label>
                                 <Input
                                     id="edit_customer_name"
                                     value={formData.customer_name}
@@ -1202,7 +1324,7 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                             </div>
 
                             <div>
-                                <Label htmlFor="edit_customer_phone">Phone Number</Label>
+                                <Label htmlFor="edit_customer_phone">Téléphone</Label>
                                 <Input
                                     id="edit_customer_phone"
                                     value={formData.customer_phone}
@@ -1221,21 +1343,25 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                             </div>
 
                             <div>
-                                <Label htmlFor="edit_status">Order Status *</Label>
+                                <Label htmlFor="edit_status">Statut *</Label>
                                 <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
                                     <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="pending">Pending</SelectItem>
-                                        <SelectItem value="completed">Completed</SelectItem>
-                                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                                        <SelectItem value="pending">À confirmer</SelectItem>
+                                        <SelectItem value="preparing">En préparation</SelectItem>
+                                        <SelectItem value="ready">Prête</SelectItem>
+                                        <SelectItem value="out_for_delivery">En livraison</SelectItem>
+                                        <SelectItem value="delivered">Livrée</SelectItem>
+                                        <SelectItem value="completed">Terminée</SelectItem>
+                                        <SelectItem value="cancelled">Annulée</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
 
                             <div>
-                                <Label htmlFor="edit_notes">Notes</Label>
+                                <Label htmlFor="edit_notes">Notes internes</Label>
                                 <Textarea
                                     id="edit_notes"
                                     value={formData.notes}
@@ -1246,11 +1372,11 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                         </div>
 
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsEditModalOpen(false)} disabled={isLoading}>
-                                Cancel
+                            <Button variant="outline" className="min-h-11" onClick={() => setIsEditModalOpen(false)} disabled={isLoading}>
+                                Annuler
                             </Button>
-                            <Button onClick={handleEdit} disabled={isLoading || !formData.customer_name || !formData.status}>
-                                {isLoading ? 'Saving...' : 'Save Changes'}
+                            <Button className="min-h-11" onClick={handleEdit} disabled={isLoading || !formData.customer_name || !formData.status}>
+                                {isLoading ? 'Enregistrement…' : 'Enregistrer'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -1260,24 +1386,24 @@ export default function OrdersIndex({ orders, products, filters }: Props) {
                 <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Delete Order</DialogTitle>
+                            <DialogTitle>Supprimer la commande</DialogTitle>
                             <DialogDescription>
-                                Are you sure you want to delete order #{selectedOrder?.id} for "{selectedOrder?.customer_name}"? This action cannot be
-                                undone.
+                                Confirmez-vous la suppression de la commande #{selectedOrder?.id} de « {selectedOrder?.customer_name} » ? Cette action
+                                est définitive.
                             </DialogDescription>
                         </DialogHeader>
 
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isLoading}>
-                                Cancel
+                            <Button variant="outline" className="min-h-11" onClick={() => setIsDeleteModalOpen(false)} disabled={isLoading}>
+                                Annuler
                             </Button>
-                            <Button variant="destructive" onClick={handleDelete} disabled={isLoading}>
-                                {isLoading ? 'Deleting...' : 'Delete Order'}
+                            <Button variant="destructive" className="min-h-11" onClick={handleDelete} disabled={isLoading}>
+                                {isLoading ? 'Suppression…' : 'Supprimer la commande'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-            </div>
+            </main>
         </AppLayout>
     );
 }

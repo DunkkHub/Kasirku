@@ -26,12 +26,10 @@ function useCarousel() {
   return context
 }
 
-interface CarouselProps extends React.HTMLAttributes<HTMLDivElement> {
-  orientation?: "horizontal" | "vertical"
-}
+type CarouselProps = React.HTMLAttributes<HTMLDivElement>
 
 const Carousel = React.forwardRef<HTMLDivElement, CarouselProps>(
-  ({ orientation = "horizontal", className, children, ...props }, ref) => {
+  ({ className, children, ...props }, ref) => {
     const [currentIndex, setCurrentIndex] = React.useState(0)
     const [totalItems, setTotalItems] = React.useState(0)
 

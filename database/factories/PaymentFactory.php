@@ -20,9 +20,10 @@ class PaymentFactory extends Factory
     {
         return [
             'order_id' => Order::factory(),
-            'amount' => fake()->numberBetween(10000, 500000),
+            'amount' => fake()->randomFloat(2, 5, 150),
+            'currency' => config('pos.currency', 'EUR'),
             'status' => 'pending',
-            'payment_method' => fake()->randomElement(['cash', 'midtrans']),
+            'payment_method' => 'pay_at_counter',
             'transaction_id' => 'TEST-'.fake()->unique()->numerify('##########'),
             'paid_at' => null,
             'notes' => null,

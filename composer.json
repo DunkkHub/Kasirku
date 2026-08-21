@@ -1,11 +1,18 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/react-starter-kit",
+    "name": "rezadrian01/teisseire-pizza-pos",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Restaurant point-of-sale and online ordering system for Teisseire Pizza, built with Laravel, React, and Inertia.",
     "keywords": [
+        "restaurant",
+        "point-of-sale",
+        "online-ordering",
+        "delivery",
         "laravel",
-        "framework"
+        "react",
+        "inertia",
+        "midtrans",
+        "escpos"
     ],
     "license": "MIT",
     "require": {
@@ -78,6 +85,9 @@
         "optimize-autoloader": true,
         "preferred-install": "dist",
         "sort-packages": true,
+        "platform": {
+            "php": "8.2.0"
+        },
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true

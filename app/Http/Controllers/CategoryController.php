@@ -14,8 +14,9 @@ class CategoryController extends Controller
     public function index()
     {
         $categories = Category::withCount('products')->get();
+
         return Inertia::render('admin/categories/index', [
-            "categories" => $categories,
+            'categories' => $categories,
         ]);
     }
 
@@ -24,7 +25,7 @@ class CategoryController extends Controller
      */
     public function create()
     {
-        abort(404, 'Not Found');
+        abort(404, 'Page introuvable.');
     }
 
     /**
@@ -32,13 +33,11 @@ class CategoryController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name',
-        ]);
+        $validated = $request->validate(['name' => 'required|string|max:120|unique:categories,name']);
 
-        Category::create($request->all());
+        Category::create(['name' => trim($validated['name'])]);
 
-        return redirect()->route('categories.index')->with('success', 'Category created successfully.');
+        return redirect()->route('categories.index')->with('success', 'Catégorie créée.');
     }
 
     /**
@@ -46,7 +45,7 @@ class CategoryController extends Controller
      */
     public function show(string $id)
     {
-        abort(404, 'Not Found');
+        abort(404, 'Page introuvable.');
     }
 
     /**
@@ -54,7 +53,7 @@ class CategoryController extends Controller
      */
     public function edit(string $id)
     {
-        abort(404, 'Not Found');
+        abort(404, 'Page introuvable.');
     }
 
     /**
@@ -62,14 +61,12 @@ class CategoryController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,' . $id,
-        ]);
+        $validated = $request->validate(['name' => 'required|string|max:120|unique:categories,name,'.$id]);
 
         $category = Category::findOrFail($id);
-        $category->update($request->all());
+        $category->update(['name' => trim($validated['name'])]);
 
-        return redirect()->route('categories.index')->with('success', 'Category updated successfully.');
+        return redirect()->route('categories.index')->with('success', 'Catégorie mise à jour.');
     }
 
     /**
@@ -79,15 +76,15 @@ class CategoryController extends Controller
     {
         $category = Category::findOrFail($id);
 
-        // Check if category has products
-        if ($category->products()->count() > 0) {
+        // Les produits archivés doivent également préserver leur catégorie.
+        if ($category->products()->withTrashed()->exists()) {
             return back()->withErrors([
-                'error' => 'Cannot delete category that has products. Please move or delete the products first.'
+                'error' => 'Cette catégorie contient des produits actifs ou archivés et ne peut pas être supprimée.',
             ]);
         }
 
         $category->delete();
 
-        return redirect()->route('categories.index')->with('success', 'Category deleted successfully.');
+        return redirect()->route('categories.index')->with('success', 'Catégorie supprimée.');
     }
 }

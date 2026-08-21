@@ -14,23 +14,21 @@ Route::get('/', [CustomerController::class, 'index'])->name('home');
 // Checkout routes
 Route::prefix('checkout')->group(function () {
     Route::get('/', [CheckoutController::class, 'index'])->name('checkout.index');
-    Route::post('/process', [CheckoutController::class, 'processCheckout'])->name('checkout.process');
+    Route::post('/process', [CheckoutController::class, 'processCheckout'])->middleware('throttle:10,1')->name('checkout.process');
     Route::get('/finish', [CheckoutController::class, 'paymentFinish'])->name('checkout.finish');
     Route::get('/unfinish', [CheckoutController::class, 'paymentUnfinish'])->name('checkout.unfinish');
     Route::get('/error', [CheckoutController::class, 'paymentError'])->name('checkout.error');
-    Route::post('/notification', [CheckoutController::class, 'paymentNotification'])->name('checkout.notification');
+    Route::post('/notification', [CheckoutController::class, 'paymentNotification'])->middleware('throttle:120,1')->name('checkout.notification');
 });
 
 // Order routes
 Route::prefix('order')->group(function () {
-    Route::get('/{orderId}/status', [CheckoutController::class, 'orderStatus'])->name('order.status');
-    Route::get('/{orderId}/check', [CheckoutController::class, 'checkOrderStatus'])->name('order.check');
+    Route::get('/{publicId}/status', [CheckoutController::class, 'orderStatus'])->whereUuid('publicId')->middleware('throttle:60,1')->name('order.status');
+    Route::get('/{publicId}/check', [CheckoutController::class, 'checkOrderStatus'])->whereUuid('publicId')->middleware('throttle:60,1')->name('order.check');
 });
 
-Route::prefix('admin')->middleware(['auth', 'verified'])->group(function () {
+Route::prefix('admin')->middleware(['auth', 'verified', 'can:access-admin'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
-
-    Route::post('print', [PrintController::class, 'index'])->name('print.index');
 
     // Resource route for CategoryController
     Route::resource('categories', CategoryController::class);
@@ -44,7 +42,7 @@ Route::prefix('admin')->middleware(['auth', 'verified'])->group(function () {
     Route::put('orders/{order}', [OrderController::class, 'update'])->name('orders.update');
     Route::delete('orders/{order}', [OrderController::class, 'destroy'])->name('orders.destroy');
     Route::post('orders/{order}/update-status', [OrderController::class, 'updateStatus'])->name('orders.update-status');
-    Route::get('orders/{order}/print', [OrderController::class, 'printReceipt'])->name('orders.print');
+    Route::post('orders/{order}/print', [PrintController::class, 'printOrder'])->middleware('throttle:10,1')->name('orders.print');
 });
-require __DIR__ . '/settings.php';
-require __DIR__ . '/auth.php';
+require __DIR__.'/settings.php';
+require __DIR__.'/auth.php';

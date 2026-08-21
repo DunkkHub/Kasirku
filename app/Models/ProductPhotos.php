@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
+use Database\Factories\ProductPhotosFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductPhotos extends Model
 {
-    /** @use HasFactory<\Database\Factories\ProductPhotosFactory> */
+    /** @use HasFactory<ProductPhotosFactory> */
     use HasFactory;
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+
+    protected $fillable = ['product_id', 'url', 'is_primary'];
+
     protected $casts = ['is_primary' => 'boolean'];
 
     public function product(): BelongsTo

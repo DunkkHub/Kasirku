@@ -4,9 +4,11 @@
 /public/build
 /public/hot
 /public/storage
+/public/images/teisseire-pizza-hero.png
 /storage/*.key
 /storage/pail
 /vendor
+/work
 .env
 .env.backup
 .env.production

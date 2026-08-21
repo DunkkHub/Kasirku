@@ -8,7 +8,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type Category } from '@/types/models';
 import { Head, router } from '@inertiajs/react';
-import { CalendarIcon, EditIcon, FolderIcon, PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
+import { AlertTriangle, CalendarIcon, EditIcon, FolderIcon, PlusIcon, SearchIcon, TrashIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 // This page's controller always eager-loads the count via withCount('products').
@@ -24,11 +24,11 @@ interface Props {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Vue d’ensemble',
         href: '/admin/dashboard',
     },
     {
-        title: 'Categories',
+        title: 'Catégories',
         href: '/admin/categories',
     },
 ];
@@ -149,7 +149,7 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
 
     // Format date
     const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('id-ID', {
+        return new Date(dateString).toLocaleDateString('fr-FR', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',
@@ -158,49 +158,54 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Categories Management" />
+            <Head title="Gestion des catégories" />
 
-            <div className="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-6">
+            <main className="flex min-h-full flex-1 flex-col gap-6 bg-[#f6efe4] p-4 sm:p-6 lg:p-8">
                 {/* Header */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 rounded-[1.75rem] bg-[#211812] px-5 py-6 text-[#fff7e9] shadow-[0_20px_48px_rgba(35,22,14,0.14)] sm:flex-row sm:items-center sm:justify-between sm:px-7">
                     <div>
-                        <h1 className="text-2xl font-semibold">Categories Management</h1>
-                        <p className="text-muted-foreground">Organize your products with categories</p>
+                        <p className="text-xs font-black tracking-[0.18em] text-[#ef9367] uppercase">Organisation de la carte</p>
+                        <h1 className="mt-2 text-3xl font-black tracking-[-0.035em]">Catégories</h1>
+                        <p className="mt-2 text-sm text-[#d8c7b4]">Structurez le menu pour aider l’équipe et les clients à trouver chaque produit.</p>
                     </div>
 
                     <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
                         <DialogTrigger asChild>
-                            <Button onClick={() => resetForm()}>
+                            <Button
+                                onClick={() => resetForm()}
+                                className="min-h-11 rounded-xl bg-[#d8562a] px-5 font-bold text-white hover:bg-[#ef6840] focus-visible:ring-2 focus-visible:ring-[#ffd6bc]"
+                            >
                                 <PlusIcon />
-                                Add Category
+                                Ajouter une catégorie
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-md">
+                        <DialogContent className="max-w-md border-[#ddcfbd] bg-[#fffaf2]">
                             <DialogHeader>
-                                <DialogTitle>Add New Category</DialogTitle>
-                                <DialogDescription>Create a new category to organize your products</DialogDescription>
+                                <DialogTitle>Ajouter une catégorie</DialogTitle>
+                                <DialogDescription>Créez une section claire pour organiser les produits de la carte.</DialogDescription>
                             </DialogHeader>
 
                             <div className="space-y-4">
                                 {/* Category Name */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="name">Category Name</Label>
+                                    <Label htmlFor="name">Nom de la catégorie</Label>
                                     <Input
                                         id="name"
                                         value={formData.name}
                                         onChange={(e) => handleInputChange('name', e.target.value)}
-                                        placeholder="Enter category name"
+                                        placeholder="Ex. Pizza base tomate"
+                                        className="min-h-11"
                                         autoFocus
                                     />
                                 </div>
                             </div>
 
                             <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={isLoading}>
-                                    Cancel
+                                <Button variant="outline" className="min-h-11" onClick={() => setIsCreateModalOpen(false)} disabled={isLoading}>
+                                    Annuler
                                 </Button>
-                                <Button onClick={handleCreate} disabled={isLoading || !formData.name.trim()}>
-                                    {isLoading ? 'Creating...' : 'Create Category'}
+                                <Button className="min-h-11" onClick={handleCreate} disabled={isLoading || !formData.name.trim()}>
+                                    {isLoading ? 'Création…' : 'Créer la catégorie'}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
@@ -208,25 +213,34 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
                 </div>
 
                 {/* Search */}
-                <div className="relative max-w-md">
+                <div className="relative max-w-md rounded-2xl border border-[#ddcfbd] bg-[#fffaf2] p-2 shadow-[0_8px_24px_rgba(64,39,23,0.04)]">
                     <SearchIcon className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input placeholder="Search categories..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                    <Input
+                        aria-label="Rechercher une catégorie"
+                        placeholder="Rechercher une catégorie…"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="min-h-11 border-transparent bg-transparent pl-10 shadow-none focus-visible:border-[#d8562a]"
+                    />
                 </div>
 
                 {/* Categories Grid */}
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {filteredCategories.map((category) => (
-                        <Card key={category.id} className="overflow-hidden transition-shadow hover:shadow-md">
+                        <Card
+                            key={category.id}
+                            className="overflow-hidden rounded-2xl border-[#ddcfbd] bg-[#fffaf2] shadow-[0_10px_28px_rgba(64,39,23,0.05)] transition-transform hover:-translate-y-0.5 motion-reduce:transform-none"
+                        >
                             <CardHeader className="pb-3">
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                                        <FolderIcon className="h-6 w-6 text-primary" />
+                                    <div className="flex size-12 items-center justify-center rounded-xl bg-[#f3e4d2]">
+                                        <FolderIcon className="size-6 text-[#c94720]" />
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <CardTitle className="truncate text-lg">{category.name}</CardTitle>
                                         <div className="mt-1 flex items-center gap-2">
                                             <Badge variant="secondary" className="text-xs">
-                                                {category.products_count} products
+                                                {category.products_count} produit(s)
                                             </Badge>
                                         </div>
                                     </div>
@@ -237,28 +251,31 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                         <CalendarIcon className="h-4 w-4" />
-                                        <span>Created {formatDate(category.created_at)}</span>
+                                        <span>Créée le {formatDate(category.created_at)}</span>
                                     </div>
 
                                     <div className="flex gap-2">
-                                        <Button variant="outline" size="sm" className="flex-1" onClick={() => openEditModal(category)}>
+                                        <Button variant="outline" size="sm" className="min-h-11 flex-1" onClick={() => openEditModal(category)}>
                                             <EditIcon className="h-4 w-4" />
-                                            Edit
+                                            Modifier
                                         </Button>
                                         <Button
                                             variant="destructive"
                                             size="sm"
-                                            className="flex-1"
+                                            className="min-h-11 flex-1"
                                             onClick={() => openDeleteModal(category)}
                                             disabled={category.products_count > 0}
                                         >
                                             <TrashIcon className="h-4 w-4" />
-                                            Delete
+                                            Supprimer
                                         </Button>
                                     </div>
 
                                     {category.products_count > 0 && (
-                                        <p className="rounded bg-amber-50 p-2 text-xs text-amber-600">⚠️ Cannot delete category with products</p>
+                                        <div className="flex items-start gap-2 rounded-xl border border-[#d59b3f]/30 bg-[#fff1cc] p-2.5 text-xs font-medium text-[#80560e]">
+                                            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                                            Déplacez les produits avant de supprimer cette catégorie.
+                                        </div>
                                     )}
                                 </div>
                             </CardContent>
@@ -270,15 +287,15 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
                 {filteredCategories.length === 0 && (
                     <div className="py-12 text-center">
                         <FolderIcon className="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">No categories found</h3>
+                        <h3 className="mt-2 text-sm font-bold text-[#31241d]">Aucune catégorie trouvée</h3>
                         <p className="mt-1 text-sm text-gray-500">
-                            {searchTerm ? 'Try adjusting your search criteria' : 'Get started by adding a new category'}
+                            {searchTerm ? 'Modifiez votre recherche.' : 'Ajoutez la première catégorie de la carte.'}
                         </p>
                         {!searchTerm && (
                             <div className="mt-6">
-                                <Button onClick={() => setIsCreateModalOpen(true)}>
+                                <Button className="min-h-11" onClick={() => setIsCreateModalOpen(true)}>
                                     <PlusIcon />
-                                    Add your first category
+                                    Ajouter la première catégorie
                                 </Button>
                             </div>
                         )}
@@ -292,7 +309,7 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
                             <Card>
                                 <CardContent className="p-4">
                                     <div className="text-2xl font-bold text-primary">{categories.length}</div>
-                                    <p className="text-sm text-muted-foreground">Total Categories</p>
+                                    <p className="text-sm text-muted-foreground">Catégories au total</p>
                                 </CardContent>
                             </Card>
                             <Card>
@@ -300,7 +317,7 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
                                     <div className="text-2xl font-bold text-green-600">
                                         {categories.filter((cat) => cat.products_count > 0).length}
                                     </div>
-                                    <p className="text-sm text-muted-foreground">Categories with Products</p>
+                                    <p className="text-sm text-muted-foreground">Catégories utilisées</p>
                                 </CardContent>
                             </Card>
                             <Card>
@@ -308,7 +325,7 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
                                     <div className="text-2xl font-bold text-blue-600">
                                         {categories.reduce((total, cat) => total + cat.products_count, 0)}
                                     </div>
-                                    <p className="text-sm text-muted-foreground">Total Products</p>
+                                    <p className="text-sm text-muted-foreground">Produits classés</p>
                                 </CardContent>
                             </Card>
                         </div>
@@ -317,32 +334,33 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
 
                 {/* Edit Modal */}
                 <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                    <DialogContent className="max-w-md">
+                    <DialogContent className="max-w-md border-[#ddcfbd] bg-[#fffaf2]">
                         <DialogHeader>
-                            <DialogTitle>Edit Category</DialogTitle>
-                            <DialogDescription>Update category information</DialogDescription>
+                            <DialogTitle>Modifier la catégorie</DialogTitle>
+                            <DialogDescription>Mettez à jour son nom dans la carte.</DialogDescription>
                         </DialogHeader>
 
                         <div className="space-y-4">
                             {/* Category Name */}
                             <div className="space-y-2">
-                                <Label htmlFor="edit-name">Category Name</Label>
+                                <Label htmlFor="edit-name">Nom de la catégorie</Label>
                                 <Input
                                     id="edit-name"
                                     value={formData.name}
                                     onChange={(e) => handleInputChange('name', e.target.value)}
-                                    placeholder="Enter category name"
+                                    placeholder="Ex. Pizza base tomate"
+                                    className="min-h-11"
                                     autoFocus
                                 />
                             </div>
                         </div>
 
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsEditModalOpen(false)} disabled={isLoading}>
-                                Cancel
+                            <Button variant="outline" className="min-h-11" onClick={() => setIsEditModalOpen(false)} disabled={isLoading}>
+                                Annuler
                             </Button>
-                            <Button onClick={handleEdit} disabled={isLoading || !formData.name.trim()}>
-                                {isLoading ? 'Updating...' : 'Update Category'}
+                            <Button className="min-h-11" onClick={handleEdit} disabled={isLoading || !formData.name.trim()}>
+                                {isLoading ? 'Enregistrement…' : 'Enregistrer'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -352,33 +370,33 @@ export default function CategoriesIndex({ categories: initialCategories }: Props
                 <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Delete Category</DialogTitle>
+                            <DialogTitle>Supprimer la catégorie</DialogTitle>
                             <DialogDescription>
-                                Are you sure you want to delete "{selectedCategory?.name}"? This action cannot be undone.
+                                Confirmez-vous la suppression de « {selectedCategory?.name} » ? Cette action est définitive.
                                 {selectedCategory?.products_count && selectedCategory.products_count > 0 && (
                                     <span className="mt-2 block font-medium text-amber-600">
-                                        Warning: This category has {selectedCategory.products_count} product(s). Please move or delete these products
-                                        first.
+                                        Cette catégorie contient {selectedCategory.products_count} produit(s). Déplacez-les avant de continuer.
                                     </span>
                                 )}
                             </DialogDescription>
                         </DialogHeader>
 
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isLoading}>
-                                Cancel
+                            <Button variant="outline" className="min-h-11" onClick={() => setIsDeleteModalOpen(false)} disabled={isLoading}>
+                                Annuler
                             </Button>
                             <Button
                                 variant="destructive"
+                                className="min-h-11"
                                 onClick={handleDelete}
                                 disabled={isLoading || (selectedCategory ? selectedCategory.products_count > 0 : false)}
                             >
-                                {isLoading ? 'Deleting...' : 'Delete Category'}
+                                {isLoading ? 'Suppression…' : 'Supprimer la catégorie'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-            </div>
+            </main>
         </AppLayout>
     );
 }

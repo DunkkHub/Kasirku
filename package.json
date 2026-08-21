@@ -1,6 +1,12 @@
 {
+    "name": "teisseire-pizza-pos",
+    "version": "1.0.0",
+    "description": "Secure ordering and point-of-sale application for Teisseire Pizza.",
     "private": true,
     "type": "module",
+    "engines": {
+        "node": ">=20.19"
+    },
     "scripts": {
         "build": "vite build",
         "build:ssr": "vite build && vite build --ssr",
@@ -23,6 +29,9 @@
         "typescript-eslint": "^8.23.0"
     },
     "dependencies": {
+        "@fontsource/instrument-sans": "^5.2.8",
+        "@fontsource/karla": "^5.2.8",
+        "@fontsource/playfair-display": "^5.2.8",
         "@headlessui/react": "^2.2.0",
         "@inertiajs/react": "^2.1.0",
         "@radix-ui/react-avatar": "^1.1.3",

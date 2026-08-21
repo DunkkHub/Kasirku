@@ -2,12 +2,14 @@ import { SVGAttributes } from 'react';
 
 export default function AppLogoIcon(props: SVGAttributes<SVGElement>) {
     return (
-        <svg {...props} viewBox="0 0 40 42" xmlns="http://www.w3.org/2000/svg">
-            <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M17.2 5.63325L8.6 0.855469L0 5.63325V32.1434L16.2 41.1434L32.4 32.1434V23.699L40 19.4767V9.85547L31.4 5.07769L22.8 9.85547V18.2999L17.2 21.411V5.63325ZM38 18.2999L32.4 21.411V15.2545L38 12.1434V18.2999ZM36.9409 10.4439L31.4 13.5221L25.8591 10.4439L31.4 7.36561L36.9409 10.4439ZM24.8 18.2999V12.1434L30.4 15.2545V21.411L24.8 18.2999ZM23.8 20.0323L29.3409 23.1105L16.2 30.411L10.6591 27.3328L23.8 20.0323ZM7.6 27.9212L15.2 32.1434V38.2999L2 30.9666V7.92116L7.6 11.0323V27.9212ZM8.6 9.29991L3.05913 6.22165L8.6 3.14339L14.1409 6.22165L8.6 9.29991ZM30.4 24.8101L17.2 32.1434V38.2999L30.4 30.9666V24.8101ZM9.6 11.0323L15.2 7.92117V22.5221L9.6 25.6333V11.0323Z"
-            />
+        <svg {...props} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="24" cy="24" r="18" fill="#FFF4DF" />
+            <path d="M24 9.5a14.5 14.5 0 0 0-13.9 10.35L37.9 28.1A14.5 14.5 0 0 0 24 9.5Z" fill="#F3B548" />
+            <path d="M10.1 19.85 37.9 28.1" stroke="#9F351B" strokeWidth="3.25" strokeLinecap="round" />
+            <circle cx="20" cy="18" r="2.4" fill="#D8562A" />
+            <circle cx="29.8" cy="21.4" r="2.4" fill="#D8562A" />
+            <path d="m17.4 25.1 3.8 7.9 4.1-5.55 3.2 7.65 3.9-6.9" stroke="#E7A637" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M14.2 15.6c2.8-5.4 8.5-8.2 14.3-6.7" stroke="#FFF4DF" strokeWidth="1.7" strokeLinecap="round" opacity=".75" />
         </svg>
     );
 }

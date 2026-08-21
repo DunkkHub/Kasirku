@@ -18,14 +18,14 @@ test('customer menu renders products and categories', function () {
 });
 
 test('customer menu search filters by product name', function () {
-    Product::factory()->create(['name' => 'Nasi Goreng']);
+    Product::factory()->create(['name' => 'Pizza Margherita']);
     Product::factory()->create(['name' => 'Es Teh']);
 
-    $response = $this->get('/?search=Nasi');
+    $response = $this->get('/?search=Margherita');
 
     $response->assertInertia(fn ($page) => $page
         ->has('products', 1)
-        ->where('products.0.name', 'Nasi Goreng')
+        ->where('products.0.name', 'Pizza Margherita')
     );
 });
 

@@ -3,34 +3,45 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthLayout from '@/layouts/auth-layout';
+import { authButtonClass, authErrorClass, authFieldClass, authLabelClass } from '@/pages/auth/auth-ui';
 import { Form, Head } from '@inertiajs/react';
 import { LoaderCircle } from 'lucide-react';
 
 export default function ConfirmPassword() {
     return (
         <AuthLayout
-            title="Confirm your password"
-            description="This is a secure area of the application. Please confirm your password before continuing."
+            title="Confirmez votre mot de passe"
+            description="Cette zone est protégée. Confirmez votre identité pour continuer en toute sécurité."
         >
-            <Head title="Confirm password" />
+            <Head title="Confirmer le mot de passe" />
 
-            <Form method="post" action={route('password.confirm')} resetOnSuccess={['password']}>
+            <Form method="post" action={route('password.confirm')} resetOnSuccess={['password']} className="space-y-5">
                 {({ processing, errors }) => (
-                    <div className="space-y-6">
+                    <>
                         <div className="grid gap-2">
-                            <Label htmlFor="password">Password</Label>
-                            <Input id="password" type="password" name="password" placeholder="Password" autoComplete="current-password" autoFocus />
-
-                            <InputError message={errors.password} />
+                            <Label htmlFor="password" className={authLabelClass}>
+                                Mot de passe
+                            </Label>
+                            <Input
+                                id="password"
+                                type="password"
+                                name="password"
+                                required
+                                placeholder="Votre mot de passe"
+                                autoComplete="current-password"
+                                autoFocus
+                                className={authFieldClass}
+                                aria-invalid={Boolean(errors.password)}
+                                aria-describedby={errors.password ? 'password-error' : undefined}
+                            />
+                            <InputError id="password-error" role="alert" message={errors.password} className={authErrorClass} />
                         </div>
 
-                        <div className="flex items-center">
-                            <Button className="w-full" disabled={processing}>
-                                {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                                Confirm password
-                            </Button>
-                        </div>
-                    </div>
+                        <Button type="submit" className={authButtonClass} disabled={processing} aria-busy={processing}>
+                            {processing && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
+                            {processing ? 'Vérification…' : 'Confirmer et continuer'}
+                        </Button>
+                    </>
                 )}
             </Form>
         </AuthLayout>

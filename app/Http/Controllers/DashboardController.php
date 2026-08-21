@@ -17,13 +17,13 @@ class DashboardController extends Controller
             ->groupBy('status')
             ->pluck('count', 'status');
 
-        $statusCounts = [
-            'pending' => (int) ($ordersByStatus['pending'] ?? 0),
-            'completed' => (int) ($ordersByStatus['completed'] ?? 0),
-            'cancelled' => (int) ($ordersByStatus['cancelled'] ?? 0),
-        ];
+        $statusCounts = collect(Order::STATUSES)->mapWithKeys(fn (string $status): array => [
+            $status => (int) ($ordersByStatus[$status] ?? 0),
+        ])->all();
 
         $topProducts = OrderItems::selectRaw('product_id, SUM(quantity) as total_quantity, SUM(subtotal) as total_revenue')
+            ->whereHas('order.payment', fn ($query) => $query->where('status', 'completed'))
+            ->whereHas('order', fn ($query) => $query->where('status', '!=', 'cancelled'))
             ->groupBy('product_id')
             ->orderByDesc('total_quantity')
             ->with('product:id,name')
@@ -46,7 +46,7 @@ class DashboardController extends Controller
                 'id' => $order->id,
                 'customer_name' => $order->customer_name,
                 'status' => $order->status,
-                'total' => (float) ($order->payment->amount ?? 0),
+                'total' => (float) $order->total_amount,
                 'created_at' => $order->created_at,
             ]);
 
@@ -63,18 +63,27 @@ class DashboardController extends Controller
             })
             ->values();
 
-        $ordersByStatusChart = [
-            ['status' => 'pending', 'label' => 'Pending', 'count' => $statusCounts['pending']],
-            ['status' => 'completed', 'label' => 'Completed', 'count' => $statusCounts['completed']],
-            ['status' => 'cancelled', 'label' => 'Cancelled', 'count' => $statusCounts['cancelled']],
+        $labels = [
+            'pending' => 'En attente',
+            'preparing' => 'En préparation',
+            'ready' => 'Prête',
+            'out_for_delivery' => 'En livraison',
+            'delivered' => 'Livrée',
+            'completed' => 'Terminée',
+            'cancelled' => 'Annulée',
         ];
+        $ordersByStatusChart = collect(Order::STATUSES)->map(fn (string $status): array => [
+            'status' => $status,
+            'label' => $labels[$status],
+            'count' => $statusCounts[$status],
+        ])->all();
 
         return Inertia::render('admin/dashboard/index', [
             'stats' => [
                 'total_revenue' => (float) Payment::where('status', 'completed')->sum('amount'),
                 'total_orders' => array_sum($statusCounts),
-                'pending_orders' => $statusCounts['pending'],
-                'completed_orders' => $statusCounts['completed'],
+                'pending_orders' => $statusCounts['pending'] + $statusCounts['preparing'] + $statusCounts['ready'] + $statusCounts['out_for_delivery'],
+                'completed_orders' => $statusCounts['completed'] + $statusCounts['delivered'],
                 'cancelled_orders' => $statusCounts['cancelled'],
                 'today_orders' => Order::whereDate('created_at', today())->count(),
                 'today_revenue' => (float) Payment::where('status', 'completed')

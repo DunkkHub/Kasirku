@@ -2,15 +2,34 @@
 
 namespace App\Models;
 
+use Database\Factories\OrderItemsFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrderItems extends Model
 {
-    /** @use HasFactory<\Database\Factories\OrderItemsFactory> */
+    /** @use HasFactory<OrderItemsFactory> */
     use HasFactory;
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+
+    protected $fillable = [
+        'order_id',
+        'product_id',
+        'product_name',
+        'quantity',
+        'notes',
+        'price',
+        'subtotal',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'quantity' => 'integer',
+            'price' => 'decimal:2',
+            'subtotal' => 'decimal:2',
+        ];
+    }
 
     public function order(): BelongsTo
     {
@@ -19,6 +38,6 @@ class OrderItems extends Model
 
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 }

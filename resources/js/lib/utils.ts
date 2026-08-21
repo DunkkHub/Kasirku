@@ -6,16 +6,16 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('id-ID', {
+    return new Intl.NumberFormat('fr-FR', {
         style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        currency: 'EUR',
+        minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+        maximumFractionDigits: 2,
     }).format(amount);
 }
 
 export function formatDate(dateString: string): string {
-    return new Date(dateString).toLocaleString('id-ID', {
+    return new Date(dateString).toLocaleString('fr-FR', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',

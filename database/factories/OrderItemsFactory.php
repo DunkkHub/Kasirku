@@ -22,6 +22,7 @@ class OrderItemsFactory extends Factory
         return [
             'order_id' => Order::factory(),
             'product_id' => Product::factory(),
+            'product_name' => 'Produit test',
             'quantity' => fake()->numberBetween(1, 5),
             'notes' => null,
             'price' => 0,
@@ -38,6 +39,7 @@ class OrderItemsFactory extends Factory
     {
         return $this->afterMaking(function (OrderItems $orderItem) {
             $orderItem->price = $orderItem->product->price;
+            $orderItem->product_name = $orderItem->product->name;
             $orderItem->subtotal = $orderItem->price * $orderItem->quantity;
         });
     }

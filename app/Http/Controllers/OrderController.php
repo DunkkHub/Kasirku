@@ -2,360 +2,237 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreOrderRequest;
+use App\Http\Requests\UpdateOrderRequest;
+use App\Http\Requests\UpdateOrderStatusRequest;
 use App\Models\Order;
 use App\Models\OrderItems;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Services\OrderPricingService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+use Inertia\Response;
+use InvalidArgumentException;
 
 class OrderController extends Controller
 {
-  /**
-   * Display a listing of orders.
-   */
-  public function index(Request $request)
-  {
-    try {
-      $query = Order::with(['orderItems.product.photos', 'payment'])
-        ->orderBy('created_at', 'desc');
+    public function __construct(private readonly OrderPricingService $pricing) {}
 
-      // Filter by status if provided
-      if ($request->has('status') && $request->status !== '') {
-        $query->where('status', $request->status);
-      }
+    public function index(Request $request): Response|JsonResponse
+    {
+        $query = Order::query()
+            ->with(['orderItems.product.photos', 'payment'])
+            ->latest();
 
-      // Search by customer name or order ID
-      if ($request->has('search') && $request->search !== '') {
-        $search = $request->search;
-        $query->where(function ($q) use ($search) {
-          $q->where('customer_name', 'like', "%{$search}%")
-            ->orWhere('id', 'like', "%{$search}%");
-        });
-      }
+        if (in_array($request->string('status')->toString(), Order::STATUSES, true)) {
+            $query->where('status', $request->string('status')->toString());
+        }
 
-      $orders = $query->paginate(10)->through(function ($order) {
-        return [
-          'id' => $order->id,
-          'customer_name' => $order->customer_name,
-          'customer_phone' => null, // Not stored in database
-          'customer_email' => null, // Not stored in database
-          'total_amount' => $order->payment->amount ?? 0,
-          'status' => $order->status,
-          'order_type' => 'admin', // Since these are admin-created orders
-          'notes' => null, // Not stored in database
-          'created_at' => $order->created_at,
-          'order_items' => $order->orderItems->map(function ($item) {
-            return [
-              'id' => $item->id,
-              'product' => [
-                'id' => $item->product->id,
-                'name' => $item->product->name,
-                'photos' => $item->product->photos->map(function ($photo) {
-                  return [
-                    'id' => $photo->id,
-                    'url' => $photo->url
-                  ];
-                })
-              ],
-              'quantity' => $item->quantity,
-              'price' => $item->price,
-              'subtotal' => $item->subtotal
-            ];
-          }),
-          'payment' => [
-            'id' => $order->payment->id ?? 0,
-            'method' => $order->payment->payment_method ?? 'cash',
-            'status' => $order->payment->status ?? 'completed',
-            'amount' => $order->payment->amount ?? 0,
-            'transaction_id' => $order->payment->transaction_id ?? '',
-            'paid_at' => $order->payment->paid_at ?? null
-          ]
+        if ($request->filled('search')) {
+            $search = mb_substr($request->string('search')->toString(), 0, 80);
+            $query->where(function ($builder) use ($search): void {
+                $builder->where('customer_name', 'like', "%{$search}%")
+                    ->orWhere('reference', 'like', "%{$search}%");
+            });
+        }
+
+        $orders = $query->paginate(10)->through(fn (Order $order): array => [
+            'id' => $order->id,
+            'public_id' => $order->public_id,
+            'reference' => $order->reference,
+            'customer_name' => $order->customer_name,
+            'customer_phone' => $order->delivery_phone,
+            'customer_email' => null,
+            'total_amount' => (float) $order->total_amount,
+            'subtotal_amount' => (float) $order->subtotal_amount,
+            'tax_amount' => (float) $order->tax_amount,
+            'delivery_fee' => (float) $order->delivery_fee,
+            'currency' => $order->currency,
+            'status' => $order->status,
+            'order_type' => $order->fulfillment_type,
+            'fulfillment_type' => $order->fulfillment_type,
+            'table_number' => $order->table_number,
+            'delivery_address' => $order->delivery_address,
+            'delivery_instructions' => $order->delivery_instructions,
+            'created_at' => $order->created_at,
+            'order_items' => $order->orderItems->map(fn (OrderItems $item): array => [
+                'id' => $item->id,
+                'product' => [
+                    'id' => $item->product_id,
+                    'name' => $item->product_name,
+                    'photos' => $item->product?->photos->map(fn ($photo): array => [
+                        'id' => $photo->id,
+                        'url' => $photo->url,
+                    ]) ?? [],
+                ],
+                'quantity' => $item->quantity,
+                'notes' => $item->notes,
+                'price' => (float) $item->price,
+                'subtotal' => (float) $item->subtotal,
+            ]),
+            'payment' => $order->payment ? [
+                'id' => $order->payment->id,
+                'method' => $order->payment->payment_method,
+                'status' => $order->payment->status,
+                'amount' => (float) $order->payment->amount,
+                'paid_at' => $order->payment->paid_at,
+            ] : null,
+        ]);
+
+        $products = Product::query()->with('photos')->orderBy('sort_order')->get();
+        $props = [
+            'orders' => $orders,
+            'products' => $products,
+            'filters' => $request->only(['status', 'search']),
+            'order_statuses' => Order::STATUSES,
         ];
-      });
 
-      $products = Product::with('photos')->get();
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
+            return response()->json($props);
+        }
 
-      // Return JSON for AJAX requests (infinite scroll). Inertia visits also
-      // set X-Requested-With via axios, so exclude them explicitly or every
-      // Inertia navigation to this page would get raw JSON instead of a
-      // proper Inertia response.
-      if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest')) {
+        return Inertia::render('admin/orders/index', $props);
+    }
+
+    public function store(StoreOrderRequest $request): JsonResponse|RedirectResponse
+    {
+        $validated = $request->validated();
+
+        [$order] = DB::transaction(function () use ($request, $validated): array {
+            $quote = $this->pricing->quote($request->normalizedItems(), $validated['fulfillment_type']);
+
+            $order = Order::create([
+                'customer_name' => trim($validated['customer_name']),
+                'table_number' => $validated['fulfillment_type'] === 'dine_in' ? $validated['table_number'] : null,
+                'fulfillment_type' => $validated['fulfillment_type'],
+                'delivery_phone' => $validated['delivery_phone'] ?? null,
+                'delivery_address' => $validated['delivery_address'] ?? null,
+                'delivery_instructions' => $validated['delivery_instructions'] ?? null,
+                'status' => 'pending',
+                'subtotal_amount' => $quote['subtotal'],
+                'tax_amount' => $quote['tax'],
+                'delivery_fee' => $quote['delivery_fee'],
+                'total_amount' => $quote['total'],
+                'currency' => config('pos.currency'),
+            ]);
+
+            foreach ($quote['items'] as $item) {
+                OrderItems::create([
+                    'order_id' => $order->id,
+                    'product_id' => $item['product_id'],
+                    'product_name' => $item['product']->name,
+                    'quantity' => $item['quantity'],
+                    'notes' => $item['notes'],
+                    'price' => $item['price'],
+                    'subtotal' => $item['subtotal'],
+                ]);
+            }
+
+            Payment::create([
+                'order_id' => $order->id,
+                'amount' => $quote['total'],
+                'currency' => config('pos.currency'),
+                'payment_method' => $validated['payment_method'],
+                'status' => 'completed',
+                'transaction_id' => 'ADMIN-'.$order->reference,
+                'paid_at' => now(),
+            ]);
+
+            return [$order, $quote];
+        }, 3);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Commande créée.',
+                'order_internal_id' => $order->id,
+                'order_id' => $order->public_id,
+                'public_id' => $order->public_id,
+                'order_reference' => $order->reference,
+            ]);
+        }
+
+        return redirect()->route('orders.index')->with('success', 'Commande créée.');
+    }
+
+    public function update(UpdateOrderRequest $request, Order $order): JsonResponse|RedirectResponse
+    {
+        $this->transition($order, $request->validated('status'));
+        $order->update(['customer_name' => trim($request->validated('customer_name'))]);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Commande mise à jour.',
+                'order_id' => $order->public_id,
+            ]);
+        }
+
+        return redirect()->route('orders.index')->with('success', 'Commande mise à jour.');
+    }
+
+    public function destroy(Request $request, Order $order): JsonResponse|RedirectResponse
+    {
+        abort_unless((bool) $request->user()?->is_admin, 403);
+
+        if ($order->status !== 'cancelled') {
+            throw ValidationException::withMessages([
+                'status' => 'Seules les commandes annulées peuvent être supprimées.',
+            ]);
+        }
+
+        $order->delete();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Commande supprimée.']);
+        }
+
+        return redirect()->route('orders.index')->with('success', 'Commande supprimée.');
+    }
+
+    public function updateStatus(UpdateOrderStatusRequest $request, Order $order): JsonResponse
+    {
+        $this->transition($order, $request->validated('status'));
+
         return response()->json([
-          'orders' => $orders,
-          'products' => $products,
-          'filters' => $request->only(['status', 'search'])
+            'success' => true,
+            'message' => 'Statut mis à jour.',
+            'status' => $order->fresh()->status,
         ]);
-      }
-
-      return Inertia::render('admin/orders/index', [
-        'orders' => $orders,
-        'products' => $products,
-        'filters' => $request->only(['status', 'search'])
-      ]);
-    } catch (\Exception $e) {
-      dd('Error: ' . $e->getMessage(), $e->getTraceAsString());
-    }
-  }
-  /**
-   * Show the form for creating a new order.
-   */
-  public function create()
-  {
-    // $products = Product::with('photos')->where('is_active', true)->get();
-
-    // return Inertia::render('admin/orders/create', [
-    //   'products' => $products
-    // ]);
-  }
-
-  /**
-   * Store a newly created order in storage.
-   */
-  public function store(Request $request)
-  {
-    $request->validate([
-      'customer_name' => 'required|string|max:255',
-      'table_number' => 'nullable|integer|min:0',
-      'status' => 'nullable|in:pending,completed,cancelled',
-      'items' => 'required|array|min:1',
-      'items.*.product_id' => 'required|exists:products,id',
-      'items.*.quantity' => 'required|integer|min:1',
-      'payment_method' => 'required|in:cash,digital',
-    ]);
-
-    DB::beginTransaction();
-
-    try {
-      // Calculate total amount
-      $subtotalAmount = 0;
-      $validatedItems = [];
-
-      foreach ($request->items as $item) {
-        $product = Product::findOrFail($item['product_id']);
-        $subtotal = $product->price * $item['quantity'];
-        $subtotalAmount += $subtotal;
-
-        $validatedItems[] = [
-          'product_id' => $product->id,
-          'quantity' => $item['quantity'],
-          'price' => $product->price,
-          'subtotal' => $subtotal
-        ];
-      }
-
-      // Add tax
-      $taxAmount = $subtotalAmount * config('pos.tax_rate');
-      $totalAmount = $subtotalAmount + $taxAmount;
-
-      // Create order
-      $order = Order::create([
-        'customer_name' => $request->customer_name,
-        'table_number' => $request->table_number ?? 0, // Default to 0 for admin orders
-        'status' => $request->status ?? 'pending', // Order status from admin input, default pending
-      ]);
-
-      // Create order items
-      foreach ($validatedItems as $item) {
-        OrderItems::create([
-          'order_id' => $order->id,
-          'product_id' => $item['product_id'],
-          'quantity' => $item['quantity'],
-          'price' => $item['price'],
-          'subtotal' => $item['subtotal'],
-        ]);
-      }
-
-      // Create payment record
-      $payment = Payment::create([
-        'order_id' => $order->id,
-        'amount' => $totalAmount,
-        'payment_method' => $request->payment_method,
-        'status' => 'completed', // Admin orders are automatically completed
-        'transaction_id' => 'ADMIN-' . time() . '-' . $order->id,
-        'paid_at' => now(),
-      ]);
-
-      DB::commit();
-
-      // Return JSON response for AJAX requests
-      if ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
-        return response()->json([
-          'success' => true,
-          'message' => 'Order berhasil dibuat!',
-          'order_id' => $order->id
-        ]);
-      }
-
-      // Return Inertia response for regular requests
-      return redirect()->route('orders.index')->with('success', 'Order berhasil dibuat!');
-    } catch (\Exception $e) {
-      DB::rollback();
-
-      // Return JSON error for AJAX requests
-      if ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
-        return response()->json([
-          'success' => false,
-          'message' => 'Gagal membuat order: ' . $e->getMessage(),
-          'errors' => ['general' => $e->getMessage()]
-        ], 422);
-      }
-
-      return redirect()->back()->withErrors(['error' => 'Gagal membuat order: ' . $e->getMessage()]);
-    }
-  }
-
-  /**
-   * Display the specified order.
-   */
-  public function show(Order $order)
-  {
-    $order->load(['orderItems.product.photos', 'payment']);
-
-    return Inertia::render('admin/orders/show', [
-      'order' => $order,
-      'printReceipt' => session('print_receipt', false)
-    ]);
-  }
-
-  /**
-   * Show the form for editing the specified order.
-   */
-  public function edit(Order $order)
-  {
-    $order->load(['orderItems.product', 'payment']);
-    $products = Product::with('photos')->get();
-
-    return Inertia::render('admin/orders/edit', [
-      'order' => $order,
-      'products' => $products
-    ]);
-  }
-
-  /**
-   * Update the specified order in storage.
-   */
-  public function update(Request $request, Order $order)
-  {
-    $request->validate([
-      'customer_name' => 'required|string|max:255',
-      'status' => 'required|in:pending,completed,cancelled',
-    ]);
-
-    $order->update([
-      'customer_name' => $request->customer_name,
-      'status' => $request->status,
-    ]);
-
-    // Return JSON response for AJAX requests
-    if ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
-      return response()->json([
-        'success' => true,
-        'message' => 'Order berhasil diupdate!',
-        'order_id' => $order->id
-      ]);
     }
 
-    return redirect()->route('orders.index')
-      ->with('success', 'Order berhasil diupdate!');
-  }
+    private function transition(Order $order, string $nextStatus): void
+    {
+        try {
+            DB::transaction(function () use ($order, $nextStatus): void {
+                $lockedOrder = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+                $lockedOrder->transitionTo($nextStatus);
 
-  /**
-   * Remove the specified order from storage.
-   */
-  public function destroy(Request $request, Order $order)
-  {
-    // Only allow deletion of cancelled orders
-    if ($order->status !== 'cancelled') {
-      return back()->withErrors(['error' => 'Hanya order yang dibatalkan yang bisa dihapus.']);
+                $payment = Payment::query()->where('order_id', $lockedOrder->id)->lockForUpdate()->first();
+                if (! $payment || $payment->status !== 'pending') {
+                    return;
+                }
+
+                $cashCompleted = $nextStatus === 'completed'
+                    && in_array($payment->payment_method, ['pay_at_counter', 'cash', 'card', 'digital'], true);
+                $deliveryPaid = $nextStatus === 'delivered'
+                    && $payment->payment_method === 'cash_on_delivery';
+
+                if ($cashCompleted || $deliveryPaid) {
+                    $payment->update(['status' => 'completed', 'paid_at' => now()]);
+                } elseif ($nextStatus === 'cancelled') {
+                    $payment->update(['status' => 'failed', 'paid_at' => null]);
+                }
+            }, 3);
+        } catch (InvalidArgumentException) {
+            throw ValidationException::withMessages([
+                'status' => "Transition de statut non autorisée vers {$nextStatus}.",
+            ]);
+        }
     }
-
-    DB::beginTransaction();
-
-    try {
-      // Delete order items
-      $order->orderItems()->delete();
-
-      // Delete payment record
-      $order->payment()->delete();
-
-      // Delete order
-      $order->delete();
-
-      DB::commit();
-
-      // Return JSON response for AJAX requests
-      if ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
-        return response()->json([
-          'success' => true,
-          'message' => 'Order berhasil dihapus!'
-        ]);
-      }
-
-      return redirect()->route('orders.index')
-        ->with('success', 'Order berhasil dihapus!');
-    } catch (\Exception $e) {
-      DB::rollback();
-
-      // Return JSON error for AJAX requests
-      if ($request->wantsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest') {
-        return response()->json([
-          'success' => false,
-          'message' => 'Gagal menghapus order: ' . $e->getMessage(),
-          'errors' => ['general' => $e->getMessage()]
-        ], 422);
-      }
-
-      return back()->withErrors(['error' => 'Gagal menghapus order: ' . $e->getMessage()]);
-    }
-  }
-
-  /**
-   * Print receipt for the order.
-   */
-  public function printReceipt(Order $order)
-  {
-    $order->load(['orderItems.product', 'payment']);
-
-    // Prepare data for print endpoint
-    $items = $order->orderItems->map(function ($item) {
-      return [
-        'name' => $item->product->name,
-        'quantity' => $item->quantity,
-        'price' => $item->price,
-        'subtotal' => $item->subtotal
-      ];
-    });
-
-    $printData = [
-      'customer_name' => $order->customer_name,
-      'customer_phone' => $order->customer_phone,
-      'items' => $items,
-      'total_amount' => $order->total_amount,
-      'payment_method' => $order->payment->method,
-      'order_date' => $order->created_at->format('d/m/Y H:i'),
-      'order_id' => $order->id
-    ];
-
-    // Redirect to print endpoint with query parameters
-    return redirect()->route('print.index', $printData);
-  }
-
-  /**
-   * Update order status.
-   */
-  public function updateStatus(Request $request, Order $order)
-  {
-    $request->validate([
-      'status' => 'required|in:pending,completed,cancelled'
-    ]);
-
-    $order->update(['status' => $request->status]);
-
-    return response()->json([
-      'success' => true,
-      'message' => 'Status order berhasil diupdate!'
-    ]);
-  }
 }

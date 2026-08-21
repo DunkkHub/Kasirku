@@ -1,288 +1,393 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { type Order, type ProductPhoto } from '@/types/models';
-import { Head, router } from '@inertiajs/react';
-import { ArrowLeft, CheckCircle, Clock, ImageIcon, Receipt, RefreshCw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { CustomerFooter, CustomerHeader, ProductImage } from '@/components/customer/customer-chrome';
+import { formatMoney, fulfillmentLabel, getProductImage, type FulfillmentType, type StorefrontConfig } from '@/lib/customer';
+import type { PublicOrder } from '@/types/models';
+import { Head } from '@inertiajs/react';
+import {
+    AlertTriangle,
+    Bike,
+    Check,
+    CheckCircle2,
+    ChefHat,
+    Clock3,
+    House,
+    PackageCheck,
+    Phone,
+    ReceiptText,
+    RefreshCw,
+    UtensilsCrossed,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface Props {
-    order: Order;
+    order: PublicOrder;
+    currency?: string;
+    locale?: string;
+    store_config?: StorefrontConfig;
 }
 
-export default function OrderStatus({ order: initialOrder }: Props) {
-    const [order, setOrder] = useState<Order>(initialOrder);
+type OrderStatus = PublicOrder['status'];
+
+export default function OrderStatusPage({ order: initialOrder, currency = 'EUR', locale = 'fr-FR', store_config }: Props) {
+    const [order, setOrder] = useState(initialOrder);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [refreshError, setRefreshError] = useState('');
+    const [lastChecked, setLastChecked] = useState<Date | null>(null);
+    const [announcement, setAnnouncement] = useState('');
+    const money = useMemo(
+        () => ({ currency: order.currency ?? store_config?.currency ?? currency, locale: store_config?.locale ?? locale }),
+        [currency, locale, order.currency, store_config?.currency, store_config?.locale],
+    );
+    const orderIdentifier = order.public_id;
 
-    // Poll for order status updates
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            try {
-                const response = await fetch(`/order/${order.id}/check`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setOrder(data.order);
-                }
-            } catch (error) {
-                console.error('Error checking order status:', error);
-            }
-        }, 10000); // Poll every 10 seconds
-
-        return () => clearInterval(interval);
-    }, [order.id]);
-
-    // Format currency
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-        }).format(amount);
-    };
-
-    // Format date
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleString('id-ID', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    };
-
-    // Get primary photo
-    const getPrimaryPhoto = (photos: ProductPhoto[] = []) => {
-        if (photos.length === 0) return null;
-        const primary = photos.find((photo) => photo.is_primary);
-        return primary?.url || photos[0]?.url || null;
-    };
-
-    // Calculate totals
-    const getTotalPrice = () => {
-        return order.order_items.reduce((total, item) => total + item.product.price * item.quantity, 0);
-    };
-
-    const getTotalItems = () => {
-        return order.order_items.reduce((total, item) => total + item.quantity, 0);
-    };
-
-    // Manual refresh
-    const handleRefresh = async () => {
-        setIsRefreshing(true);
+    const refresh = async (manual = false) => {
+        if (manual) setIsRefreshing(true);
         try {
-            const response = await fetch(`/order/${order.id}/check`);
-            if (response.ok) {
-                const data = await response.json();
-                setOrder(data.order);
-            }
-        } catch (error) {
-            console.error('Error refreshing order status:', error);
+            const response = await fetch(`/order/${orderIdentifier}/check`, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!response.ok) throw new Error('refresh-failed');
+            const data = (await response.json()) as { order: PublicOrder };
+            if (data.order.status !== order.status) setAnnouncement(`Nouveau statut : ${statusCopy(data.order).title}`);
+            setOrder(data.order);
+            setLastChecked(new Date());
+            setRefreshError('');
+        } catch {
+            if (manual) setRefreshError('Le statut n’a pas pu être actualisé. Réessayez dans un instant.');
         } finally {
-            setIsRefreshing(false);
+            if (manual) setIsRefreshing(false);
         }
     };
 
-    const goHome = () => {
-        // Clear order info from localStorage
-        localStorage.removeItem('kasirku_current_order');
-        router.visit('/');
-    };
+    useEffect(() => {
+        if (isFinalStatus(order.status)) return;
+        const interval = window.setInterval(() => void refresh(false), 10_000);
+        return () => window.clearInterval(interval);
+        // The identifier and final status are the only values that should restart polling.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orderIdentifier, order.status]);
 
-    // Get status info
-    const getStatusInfo = () => {
-        switch (order.status) {
-            case 'pending':
-                return {
-                    icon: <Clock className="h-8 w-8 text-yellow-500" />,
-                    title: 'Pesanan Sedang Diproses',
-                    description: 'Pesanan Anda sedang dipersiapkan oleh dapur. Mohon tunggu sebentar.',
-                    color: 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950',
-                };
-            case 'completed':
-                return {
-                    icon: <CheckCircle className="h-8 w-8 text-green-500" />,
-                    title: 'Pesanan Siap Diambil!',
-                    description: 'Pesanan Anda sudah siap. Silakan ambil di kasir dengan menunjukkan halaman ini.',
-                    color: 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950',
-                };
-            case 'cancelled':
-                return {
-                    icon: <Receipt className="h-8 w-8 text-red-500" />,
-                    title: 'Pesanan Dibatalkan',
-                    description: 'Pesanan Anda telah dibatalkan. Silakan hubungi kasir untuk informasi lebih lanjut.',
-                    color: 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950',
-                };
-            default:
-                return {
-                    icon: <Clock className="h-8 w-8 text-gray-500" />,
-                    title: 'Status Tidak Diketahui',
-                    description: 'Mohon hubungi kasir untuk informasi lebih lanjut.',
-                    color: 'border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950',
-                };
-        }
-    };
-
-    const statusInfo = getStatusInfo();
+    const status = statusCopy(order);
+    const fulfillment = order.fulfillment_type ?? 'dine_in';
+    const reference = order.reference;
+    const itemsSubtotal = Number(order.subtotal_amount);
 
     return (
-        <div className="min-h-screen bg-background">
-            <Head title={`Pesanan #${order.id} - Status`} />
+        <div className="customer-theme">
+            <Head title={`Commande ${reference} — Teisseire Pizza`} />
+            <CustomerHeader backHref="/" context={`Commande ${reference}`} />
+            <p className="sr-only" aria-live="polite">
+                {announcement}
+            </p>
 
-            {/* Header */}
-            <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="container mx-auto px-4 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <Button variant="ghost" size="icon" onClick={goHome}>
-                                <ArrowLeft className="h-5 w-5" />
-                            </Button>
-                            <div>
-                                <h1 className="text-2xl font-bold text-foreground">Status Pesanan</h1>
-                                <p className="text-muted-foreground">Pesanan #{order.id}</p>
+            <main id="main-content" className="customer-container py-8 md:py-12">
+                <div className="mx-auto max-w-5xl">
+                    <section
+                        className={`customer-card relative overflow-hidden border-l-4 p-6 sm:p-8 ${status.borderClass}`}
+                        aria-labelledby="order-status-title"
+                    >
+                        <div className="absolute -top-16 -right-16 size-52 rounded-full bg-[#ff6b22]/[0.04]" aria-hidden="true" />
+                        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="flex items-start gap-4">
+                                <span className={`grid size-12 shrink-0 place-items-center rounded-full ${status.iconClass}`}>{status.icon}</span>
+                                <div>
+                                    <p className="text-xs font-bold tracking-[0.18em] text-[#ff9c62] uppercase">Commande {reference}</p>
+                                    <h1 id="order-status-title" className="customer-display mt-2 text-3xl text-[#fff6e8] sm:text-4xl">
+                                        {status.title}
+                                    </h1>
+                                    <p className="mt-2 max-w-2xl leading-7 text-[#aaa092]">{status.description}</p>
+                                </div>
                             </div>
+                            <button
+                                type="button"
+                                className="customer-secondary-button shrink-0"
+                                onClick={() => void refresh(true)}
+                                disabled={isRefreshing}
+                            >
+                                <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+                                {isRefreshing ? 'Actualisation…' : 'Actualiser'}
+                            </button>
                         </div>
-                        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
-                            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                            Refresh
-                        </Button>
-                    </div>
-                </div>
-            </header>
-
-            {/* Main Content */}
-            <main className="container mx-auto px-4 py-6">
-                <div className="mx-auto max-w-4xl space-y-6">
-                    {/* Status Card */}
-                    <Card className={statusInfo.color}>
-                        <CardContent className="flex items-center gap-4 p-6">
-                            {statusInfo.icon}
-                            <div className="flex-grow">
-                                <h2 className="text-xl font-bold">{statusInfo.title}</h2>
-                                <p className="text-muted-foreground">{statusInfo.description}</p>
-                                {order.status === 'pending' && (
-                                    <p className="mt-2 text-sm text-muted-foreground">
-                                        💡 Halaman ini akan otomatis diperbarui. Anda juga dapat me-refresh secara manual.
-                                    </p>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <div className="grid gap-6 lg:grid-cols-2">
-                        {/* Order Details */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Detail Pesanan</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <p className="text-muted-foreground">Nama Pelanggan</p>
-                                        <p className="font-medium">{order.customer_name}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-muted-foreground">Nomor Meja</p>
-                                        <p className="font-medium">Meja {order.table_number}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-muted-foreground">Waktu Pesanan</p>
-                                        <p className="font-medium">{formatDate(order.created_at)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-muted-foreground">Status Pembayaran</p>
-                                        <Badge variant={order.payment.status === 'completed' ? 'default' : 'secondary'}>
-                                            {order.payment.status === 'completed' ? 'Lunas' : 'Pending'}
-                                        </Badge>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Payment Info */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Informasi Pembayaran</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span>Subtotal ({getTotalItems()} item)</span>
-                                        <span>{formatCurrency(getTotalPrice())}</span>
-                                    </div>
-                                    <Separator />
-                                    <div className="flex justify-between font-semibold">
-                                        <span>Total Dibayar</span>
-                                        <span className="text-green-600">{formatCurrency(order.payment.amount)}</span>
-                                    </div>
-                                </div>
-
-                                <div className="text-sm text-muted-foreground">
-                                    <p>Metode Pembayaran: {order.payment.payment_method}</p>
-                                    {order.payment.paid_at && <p>Dibayar pada: {formatDate(order.payment.paid_at)}</p>}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Order Items */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Item Pesanan</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {order.order_items.map((item) => (
-                                <div key={item.id} className="flex items-center gap-4">
-                                    <div className="h-16 w-16 flex-shrink-0">
-                                        {getPrimaryPhoto(item.product.photos) ? (
-                                            <img
-                                                src={getPrimaryPhoto(item.product.photos)!}
-                                                alt={item.product.name}
-                                                className="h-full w-full rounded object-cover"
-                                            />
-                                        ) : (
-                                            <div className="flex h-full w-full items-center justify-center rounded bg-muted">
-                                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="flex-grow">
-                                        <h4 className="font-medium">{item.product.name}</h4>
-                                        <p className="text-sm text-muted-foreground">
-                                            {formatCurrency(item.product.price)} × {item.quantity}
-                                        </p>
-                                        {item.product.category && (
-                                            <Badge variant="secondary" className="mt-1 text-xs">
-                                                {item.product.category.name}
-                                            </Badge>
-                                        )}
-                                        {item.notes && <p className="mt-1 text-xs text-muted-foreground">Catatan: {item.notes}</p>}
-                                    </div>
-
-                                    <div className="text-right">
-                                        <p className="font-medium">{formatCurrency(item.product.price * item.quantity)}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </CardContent>
-                    </Card>
-
-                    {/* Footer Note */}
-                    <Card className="border-dashed">
-                        <CardContent className="p-6 text-center">
-                            <Receipt className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                            <h3 className="mb-2 font-semibold">Nota Digital</h3>
-                            <p className="text-sm text-muted-foreground">
-                                Simpan halaman ini sebagai bukti pesanan Anda. Tunjukkan kepada kasir saat mengambil pesanan.
+                        {refreshError && (
+                            <p role="alert" className="relative mt-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                                {refreshError}
                             </p>
-                            {order.status === 'completed' && (
-                                <p className="mt-2 text-sm font-medium text-green-600">✅ Pesanan siap diambil di kasir</p>
-                            )}
-                        </CardContent>
-                    </Card>
+                        )}
+                        {!isFinalStatus(order.status) && (
+                            <p className="relative mt-5 flex items-center gap-2 text-xs text-[#81786e]">
+                                <span className="size-2 animate-pulse rounded-full bg-[#ff6b22]" />
+                                Mise à jour automatique toutes les 10 secondes
+                                {lastChecked ? ` · vérifié à ${lastChecked.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                            </p>
+                        )}
+                    </section>
+
+                    <OrderTimeline fulfillment={fulfillment} status={order.status} />
+
+                    <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,.75fr)]">
+                        <section className="customer-card overflow-hidden" aria-labelledby="items-title">
+                            <div className="flex items-center justify-between border-b border-white/10 p-5 sm:p-6">
+                                <div>
+                                    <h2 id="items-title" className="customer-display text-2xl text-[#fff6e8]">
+                                        Détail de la commande
+                                    </h2>
+                                    <p className="mt-1 text-sm text-[#8f8578]">Passée le {formatDate(order.created_at)}</p>
+                                </div>
+                                <ReceiptText className="size-6 text-[#ff6b22]" aria-hidden="true" />
+                            </div>
+                            <div className="divide-y divide-white/8 px-5 sm:px-6">
+                                {order.order_items.map((item, index) => (
+                                    <article key={`${item.product.id}-${index}`} className="flex gap-4 py-5">
+                                        <div className="size-16 shrink-0 overflow-hidden rounded-xl">
+                                            <ProductImage src={getProductImage(item.product)} alt={item.product.name} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="font-bold text-[#fff6e8]">{item.product.name}</h3>
+                                            <p className="mt-1 text-sm text-[#948a7d]">
+                                                {item.quantity} × {formatMoney(Number(item.price), money.currency, money.locale)}
+                                            </p>
+                                            {item.notes && <p className="mt-1 text-xs text-[#ff9c62]">Cuisine : {item.notes}</p>}
+                                        </div>
+                                        <strong className="text-sm text-[#e7dccd] tabular-nums">
+                                            {formatMoney(Number(item.subtotal), money.currency, money.locale)}
+                                        </strong>
+                                    </article>
+                                ))}
+                            </div>
+                            <div className="space-y-2 border-t border-white/10 bg-[#0e0c0a] p-5 text-sm sm:p-6">
+                                <SummaryLine label="Sous-total" value={formatMoney(itemsSubtotal, money.currency, money.locale)} />
+                                {Number(order.tax_amount) > 0 && (
+                                    <SummaryLine label="Taxes" value={formatMoney(Number(order.tax_amount), money.currency, money.locale)} />
+                                )}
+                                {Number(order.delivery_fee ?? 0) > 0 && (
+                                    <SummaryLine label="Livraison" value={formatMoney(Number(order.delivery_fee), money.currency, money.locale)} />
+                                )}
+                                <div className="mt-3 flex items-end justify-between border-t border-white/10 pt-4">
+                                    <span className="font-bold text-[#fff6e8]">Total</span>
+                                    <strong className="text-2xl text-[#ff9c62] tabular-nums">
+                                        {formatMoney(Number(order.total_amount), money.currency, money.locale)}
+                                    </strong>
+                                </div>
+                            </div>
+                        </section>
+
+                        <div className="space-y-6">
+                            <section className="customer-card p-5 sm:p-6" aria-labelledby="fulfillment-info-title">
+                                <div className="mb-5 flex items-center gap-3">
+                                    <span className="grid size-10 place-items-center rounded-full bg-[#ff6b22]/10 text-[#ff6b22]">
+                                        {fulfillmentIcon(fulfillment)}
+                                    </span>
+                                    <div>
+                                        <p className="text-xs font-bold tracking-wider text-[#887f74] uppercase">Mode de retrait</p>
+                                        <h2 id="fulfillment-info-title" className="font-bold text-[#fff6e8]">
+                                            {fulfillmentLabel(fulfillment)}
+                                        </h2>
+                                    </div>
+                                </div>
+                                <dl className="space-y-4 text-sm">
+                                    <DetailRow label="Nom" value={order.customer_name || '—'} />
+                                    {fulfillment === 'dine_in' && (
+                                        <DetailRow label="Table" value={order.table_number ? `N° ${order.table_number}` : 'À confirmer'} />
+                                    )}
+                                    {fulfillment === 'delivery' && <DetailRow label="Destination" value="Adresse de livraison confirmée" />}
+                                    {fulfillment === 'pickup' && <DetailRow label="Retrait" value="75 rue Léon Jouhaux" />}
+                                </dl>
+                            </section>
+
+                            <section className="customer-card p-5 sm:p-6" aria-labelledby="payment-title">
+                                <div className="mb-4 flex items-center justify-between gap-3">
+                                    <h2 id="payment-title" className="font-bold text-[#fff6e8]">
+                                        Paiement
+                                    </h2>
+                                    <PaymentBadge status={order.payment.status} />
+                                </div>
+                                <p className="text-sm leading-6 text-[#948a7d]">
+                                    {order.payment.status === 'completed'
+                                        ? `Réglé${order.payment.paid_at ? ` le ${formatDate(order.payment.paid_at)}` : ''}.`
+                                        : fulfillment === 'delivery'
+                                          ? 'À régler lors de la livraison.'
+                                          : 'À régler au comptoir.'}
+                                </p>
+                                <p className="mt-2 text-xs text-[#887f74]">Mode : {paymentMethodLabel(order.payment.method)}</p>
+                            </section>
+
+                            <a href="tel:+33634614047" className="customer-secondary-button w-full">
+                                <Phone className="size-4" aria-hidden="true" />
+                                Besoin d’aide ? Appelez-nous
+                            </a>
+                        </div>
+                    </div>
+
+                    <div className="mt-8 rounded-2xl border border-dashed border-white/12 p-5 text-center text-sm text-[#8f8578]">
+                        <p className="font-bold text-[#d8cebf]">Gardez cette page ouverte</p>
+                        <p className="mt-1">
+                            Votre référence <strong className="text-[#ff9c62]">{reference}</strong> permet à l’équipe de retrouver rapidement la
+                            commande.
+                        </p>
+                    </div>
                 </div>
             </main>
+            <CustomerFooter />
         </div>
     );
+}
+
+function statusCopy(order: PublicOrder) {
+    const fulfillment = order.fulfillment_type ?? 'dine_in';
+    const completedText =
+        fulfillment === 'delivery'
+            ? 'Votre commande a été livrée. Bon appétit !'
+            : fulfillment === 'pickup'
+              ? 'Votre commande est prête au comptoir.'
+              : 'Votre commande est prête à être servie.';
+    const statuses: Record<OrderStatus, { title: string; description: string; icon: React.ReactNode; iconClass: string; borderClass: string }> = {
+        pending: {
+            title: 'Commande bien reçue',
+            description: 'L’équipe va confirmer votre commande et lancer sa préparation.',
+            icon: <Clock3 className="size-6" aria-hidden="true" />,
+            iconClass: 'bg-amber-400/12 text-amber-300',
+            borderClass: 'border-l-amber-400',
+        },
+        preparing: {
+            title: 'En préparation',
+            description: 'Votre commande est entre les mains de notre équipe en cuisine.',
+            icon: <ChefHat className="size-6" aria-hidden="true" />,
+            iconClass: 'bg-[#ff6b22]/12 text-[#ff9c62]',
+            borderClass: 'border-l-[#ff6b22]',
+        },
+        ready: {
+            title: fulfillment === 'delivery' ? 'Prête pour le départ' : 'Votre commande est prête',
+            description: fulfillment === 'delivery' ? 'Elle sera confiée au livreur dans un instant.' : completedText,
+            icon: <PackageCheck className="size-6" aria-hidden="true" />,
+            iconClass: 'bg-emerald-400/12 text-emerald-300',
+            borderClass: 'border-l-emerald-400',
+        },
+        out_for_delivery: {
+            title: 'En cours de livraison',
+            description: 'Votre commande est en route vers l’adresse indiquée.',
+            icon: <Bike className="size-6" aria-hidden="true" />,
+            iconClass: 'bg-sky-400/12 text-sky-300',
+            borderClass: 'border-l-sky-400',
+        },
+        completed: {
+            title: fulfillment === 'delivery' ? 'Commande livrée' : 'Commande terminée',
+            description: completedText,
+            icon: <CheckCircle2 className="size-6" aria-hidden="true" />,
+            iconClass: 'bg-emerald-400/12 text-emerald-300',
+            borderClass: 'border-l-emerald-400',
+        },
+        delivered: {
+            title: 'Commande livrée',
+            description: completedText,
+            icon: <House className="size-6" aria-hidden="true" />,
+            iconClass: 'bg-emerald-400/12 text-emerald-300',
+            borderClass: 'border-l-emerald-400',
+        },
+        cancelled: {
+            title: 'Commande annulée',
+            description: 'Cette commande a été annulée. Contactez-nous si vous avez besoin d’aide.',
+            icon: <AlertTriangle className="size-6" aria-hidden="true" />,
+            iconClass: 'bg-red-400/12 text-red-300',
+            borderClass: 'border-l-red-400',
+        },
+    };
+    return statuses[order.status] ?? statuses.pending;
+}
+
+function isFinalStatus(status: OrderStatus) {
+    return ['completed', 'delivered', 'cancelled'].includes(status);
+}
+
+function OrderTimeline({ fulfillment, status }: { fulfillment: FulfillmentType; status: OrderStatus }) {
+    const steps =
+        fulfillment === 'delivery'
+            ? ['Reçue', 'En cuisine', 'En route', 'Livrée']
+            : fulfillment === 'pickup'
+              ? ['Reçue', 'En cuisine', 'Prête', 'Retirée']
+              : ['Reçue', 'En cuisine', 'Prête', 'Servie'];
+    const activeIndex =
+        status === 'pending'
+            ? 0
+            : status === 'preparing'
+              ? 1
+              : status === 'ready' || status === 'out_for_delivery'
+                ? 2
+                : status === 'completed' || status === 'delivered'
+                  ? 3
+                  : 0;
+    return (
+        <section className="customer-card mt-6 p-5 sm:p-6" aria-labelledby="progress-title">
+            <h2 id="progress-title" className="sr-only">
+                Progression de la commande
+            </h2>
+            <ol className="grid grid-cols-4">
+                {steps.map((step, index) => {
+                    const reached = status !== 'cancelled' && index <= activeIndex;
+                    return (
+                        <li key={step} className="relative flex flex-col items-center text-center">
+                            {index > 0 && (
+                                <span
+                                    className={`absolute top-4 right-1/2 h-0.5 w-full ${reached ? 'bg-[#ff6b22]' : 'bg-white/10'}`}
+                                    aria-hidden="true"
+                                />
+                            )}
+                            <span
+                                className={`relative z-10 grid size-8 place-items-center rounded-full border text-xs font-bold ${reached ? 'border-[#ff6b22] bg-[#ff6b22] text-[#170b05]' : 'border-white/15 bg-[#15120f] text-[#8f8578]'}`}
+                            >
+                                {index < activeIndex && reached ? <Check className="size-4" aria-hidden="true" /> : index + 1}
+                            </span>
+                            <span className={`mt-2 text-[0.68rem] font-bold sm:text-xs ${reached ? 'text-[#e9decf]' : 'text-[#8f8578]'}`}>
+                                {step}
+                            </span>
+                        </li>
+                    );
+                })}
+            </ol>
+        </section>
+    );
+}
+
+function fulfillmentIcon(type: FulfillmentType) {
+    if (type === 'delivery') return <Bike className="size-5" aria-hidden="true" />;
+    if (type === 'pickup') return <PackageCheck className="size-5" aria-hidden="true" />;
+    return <UtensilsCrossed className="size-5" aria-hidden="true" />;
+}
+
+function PaymentBadge({ status }: { status: PublicOrder['payment']['status'] }) {
+    const styles =
+        status === 'completed'
+            ? 'bg-emerald-400/12 text-emerald-300'
+            : status === 'failed'
+              ? 'bg-red-400/12 text-red-300'
+              : 'bg-amber-400/12 text-amber-300';
+    const label = status === 'completed' ? 'Réglé' : status === 'failed' ? 'Échec' : 'À régler';
+    return <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${styles}`}>{label}</span>;
+}
+
+function paymentMethodLabel(method: string) {
+    if (method === 'cash_on_delivery') return 'paiement à la livraison';
+    if (method === 'pay_at_counter' || method === 'cash') return 'paiement au comptoir';
+    if (method === 'midtrans') return 'paiement en ligne';
+    return method;
+}
+
+function SummaryLine({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center justify-between text-[#9b9184]">
+            <span>{label}</span>
+            <span className="text-[#d8cebf] tabular-nums">{value}</span>
+        </div>
+    );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div>
+            <dt className="text-xs font-bold tracking-wide text-[#887f74] uppercase">{label}</dt>
+            <dd className="mt-1 leading-6 text-[#d8cebf]">{value}</dd>
+        </div>
+    );
+}
+
+function formatDate(value: string) {
+    return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }

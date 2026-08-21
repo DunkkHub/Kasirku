@@ -21,7 +21,10 @@ class ProductFactory extends Factory
         return [
             'name' => ucfirst(fake()->unique()->words(3, true)),
             'category_id' => Category::factory(),
-            'price' => fake()->numberBetween(5000, 100000),
+            'price' => fake()->randomFloat(2, 5, 100),
+            'description' => fake()->sentence(),
+            'is_available' => true,
+            'sort_order' => 0,
         ];
     }
 }

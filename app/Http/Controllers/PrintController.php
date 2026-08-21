@@ -2,296 +2,97 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Mike42\Escpos\Printer;
+use Illuminate\Support\Facades\Log;
 use Mike42\Escpos\PrintConnectors\FilePrintConnector;
+use Mike42\Escpos\Printer;
+use Throwable;
 
 class PrintController extends Controller
 {
-    public function index(Request $request)
+    public function printOrder(Request $request, Order $order): JsonResponse
     {
-        // Check if request contains items (JSON) or text (query parameter)
-        if ($request->has('items')) {
-            $items = $request->input('items');
-            $paid = $request->input('paid', 0); // Get paid amount, default to 0
+        abort_unless((bool) $request->user()?->is_admin, 403);
 
-            // Validate items
-            if (empty($items) || !is_array($items)) {
-                return response()->json(['error' => 'Items array is required'], 400);
-            }
-
-            // Validate paid amount
-            if ($paid <= 0) {
-                return response()->json(['error' => 'Paid amount is required and must be greater than 0'], 400);
-            }
-
-            // Format items to text with payment info
-            $formattedText = $this->formatItemsToText($items, $paid);
-            $result = $this->printReceipt($formattedText);
-        } else {
-            // Fallback to old method (text parameter)
-            $text = $request->query('text') ?? $request->get('text');
-
-            // Validate if text is empty
-            if (empty($text)) {
-                return response()->json(['error' => 'Text parameter or items array is required'], 400);
-            }
-
-            $result = $this->printReceipt($text);
+        $device = (string) config('pos.printer_device');
+        if (! preg_match('#^(?:/dev/usb/lp[0-9]{1,2}|COM[1-9][0-9]?)$#i', $device)) {
+            return response()->json([
+                'message' => 'Aucune imprimante autorisée n’est configurée.',
+            ], 503);
         }
 
-        if ($result['success']) {
-            return response()->json(['message' => 'Print job initiated'], 200);
-        } else {
-            return response()->json(['error' => $result['message']], 500);
-        }
-    }
+        $order->load(['orderItems', 'payment']);
+        $printer = null;
 
-    private function formatItemsToText($items, $paid = 0)
-    {
-        $formattedText = "";
-        $subtotal = 0;
-
-        // Format each item
-        foreach ($items as $item) {
-            $name = $item['name'] ?? '';
-            $quantity = $item['quantity'] ?? 1;
-            $price = $item['price'] ?? 0;
-            $totalPrice = $quantity * $price;
-
-            // Add to subtotal
-            $subtotal += $totalPrice;
-
-            // Format: Item Name (qty) | Total Price
-            $itemLine = $name . " (" . $quantity . "x)";
-            $priceFormatted = "Rp " . number_format($totalPrice, 0, ',', '.');
-
-            $formattedText .= $itemLine . "|" . $priceFormatted . "\n";
-        }
-
-        // Calculate tax
-        $taxRate = config('pos.tax_rate');
-        $tax = $subtotal * $taxRate;
-        $total = $subtotal + $tax;
-
-        // Add summary to text
-        $formattedText .= "SUMMARY\n";
-        $formattedText .= "Subtotal|Rp " . number_format($subtotal, 0, ',', '.') . "\n";
-        $formattedText .= "Pajak (" . ($taxRate * 100) . "%)|Rp " . number_format($tax, 0, ',', '.') . "\n";
-        $formattedText .= "TOTAL|Rp " . number_format($total, 0, ',', '.') . "\n";
-
-        // Add payment info if provided
-        if ($paid > 0) {
-            $change = $paid - $total;
-            $formattedText .= "PAYMENT\n";
-            $formattedText .= "Bayar|Rp " . number_format($paid, 0, ',', '.') . "\n";
-            $formattedText .= "Kembali|Rp " . number_format($change, 0, ',', '.') . "\n";
-        }
-
-        return $formattedText;
-    }
-
-    private function printReceipt($text)
-    {
         try {
-            $connector = new FilePrintConnector("/dev/usb/lp0");
-            $printer = new Printer($connector);
+            $printer = new Printer(new FilePrintConnector($device));
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH | Printer::MODE_EMPHASIZED);
+            $printer->text("TEISSEIRE PIZZA\n");
+            $printer->selectPrintMode();
+            $printer->text("Commande {$this->safe($order->reference)}\n");
+            $printer->text($order->created_at->format('d/m/Y H:i')."\n");
+            $printer->text(str_repeat('-', 32)."\n");
+            $printer->setJustification(Printer::JUSTIFY_LEFT);
 
-            // Header
-            $this->printHeader($printer);
+            foreach ($order->orderItems as $item) {
+                $name = $this->safe($item->product_name);
+                $printer->text("{$item->quantity}x {$name}\n");
+                if ($item->notes) {
+                    $printer->text('  '.$this->safe($item->notes)."\n");
+                }
+                $printer->text('  '.$this->money($item->subtotal)."\n");
+            }
 
-            // Content (text dari parameter)
-            $this->printContent($printer, $text);
-
-            // Footer
-            $this->printFooter($printer);
-
+            $printer->text(str_repeat('-', 32)."\n");
+            $printer->text('Sous-total: '.$this->money($order->subtotal_amount)."\n");
+            if ((float) $order->tax_amount > 0) {
+                $printer->text('Taxe: '.$this->money($order->tax_amount)."\n");
+            }
+            if ((float) $order->delivery_fee > 0) {
+                $printer->text('Livraison: '.$this->money($order->delivery_fee)."\n");
+            }
+            $printer->setEmphasis(true);
+            $printer->text('TOTAL: '.$this->money($order->total_amount)."\n");
+            $printer->setEmphasis(false);
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->text("Merci et bon appétit !\n\n");
             $printer->cut();
-            $printer->close();
 
-            return [
-                'success' => true,
-                'message' => 'Printed successfully'
-            ];
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'message' => $e->getMessage()
-            ];
+            return response()->json(['message' => 'Impression lancée.']);
+        } catch (Throwable $exception) {
+            $errorId = (string) str()->uuid();
+            Log::error('Receipt print failed', [
+                'error_id' => $errorId,
+                'order_id' => $order->id,
+                'exception' => $exception,
+            ]);
+
+            return response()->json([
+                'message' => 'L’impression a échoué.',
+                'error_id' => $errorId,
+            ], 500);
+        } finally {
+            try {
+                $printer?->close();
+            } catch (Throwable) {
+                // The original error is already returned/logged.
+            }
         }
     }
 
-    private function printHeader($printer)
+    private function safe(string $value): string
     {
-        // Logo or brand name
-        $printer->setJustification(Printer::JUSTIFY_CENTER);
-        $printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH | Printer::MODE_DOUBLE_HEIGHT);
-        $printer->text("KASIRKU\n");
-        $printer->selectPrintMode();
+        $withoutControls = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value) ?? '';
 
-        // Tagline
-        $printer->text("Point of Sale System\n");
-        $printer->text("================================\n");
-
-        // Store info
-        $printer->setJustification(Printer::JUSTIFY_LEFT);
-        $printer->text("Alamat: Jl. Contoh No. 123\n");
-        $printer->text("Telp: (021) 1234-5678\n");
-        $printer->text("Email: info@kasirku.com\n");
-
-        $printer->setJustification(Printer::JUSTIFY_CENTER);
-        $printer->text("================================\n");
-
-        // Date and time with Indonesia timezone
-        $printer->setJustification(Printer::JUSTIFY_LEFT);
-        $datetime = new \DateTime('now', new \DateTimeZone('Asia/Jakarta'));
-        $printer->text("Tanggal: " . $datetime->format('d/m/Y H:i:s') . " WIB\n");
-        $printer->text("Kasir: Admin\n");
-        $printer->text("--------------------------------\n\n");
+        return str($withoutControls)->squish()->limit(48)->toString();
     }
 
-    private function printContent($printer, $text)
+    private function money(int|float|string $amount): string
     {
-        // Content area
-        $printer->setJustification(Printer::JUSTIFY_CENTER);
-        $printer->selectPrintMode(Printer::MODE_EMPHASIZED);
-        $printer->text("DETAIL TRANSAKSI\n");
-        $printer->selectPrintMode();
-        $printer->text("--------------------------------\n");
-
-        // Main content from parameter with proper formatting
-        $printer->setJustification(Printer::JUSTIFY_LEFT);
-
-        // Parse items with separator |
-        $lines = explode("\n", $text);
-        $summaryStarted = false;
-        $paymentStarted = false;
-
-        foreach ($lines as $lineIndex => $line) {
-            $line = trim($line);
-            if (empty($line)) continue;
-
-            // Check if summary section starts
-            if ($line === "SUMMARY") {
-                $summaryStarted = true;
-                $printer->text("--------------------------------\n");
-                continue;
-            }
-
-            // Check if payment section starts
-            if ($line === "PAYMENT") {
-                $paymentStarted = true;
-                $printer->text("--------------------------------\n");
-                continue;
-            }
-
-            if (strpos($line, '|') !== false) {
-                $parts = explode('|', $line);
-                $leftSide = trim($parts[0]);
-                $rightSide = trim($parts[1]);
-
-                // If in summary section and item is TOTAL, make it bold
-                if ($summaryStarted && strpos($leftSide, 'TOTAL') !== false) {
-                    $printer->selectPrintMode(Printer::MODE_EMPHASIZED);
-                    $this->printFormattedLine($printer, $leftSide . ":", $rightSide);
-                    $printer->selectPrintMode();
-                } else {
-                    $this->printFormattedLine($printer, $leftSide . ":", $rightSide);
-                }
-            } else {
-                $printer->text($line . "\n");
-            }
-        }
-
-        // Only show static payment info if no dynamic payment data was provided
-        if (!$paymentStarted) {
-            $printer->text("--------------------------------\n");
-            $this->printFormattedLine($printer, "Bayar:", "Rp  30,000");
-            $this->printFormattedLine($printer, "Kembali:", "Rp   2,500");
-        }
-
-        $printer->text("--------------------------------\n\n");
-    }
-
-    private function printFooter($printer)
-    {
-        // Thank you message
-        $printer->setJustification(Printer::JUSTIFY_CENTER);
-        $printer->text("Terima kasih atas kunjungan Anda\n");
-        $printer->text("Barang yang sudah dibeli\n");
-        $printer->text("tidak dapat dikembalikan\n\n");
-
-        // QR Code atau info tambahan
-        $printer->text("Follow us:\n");
-        $printer->text("@kasirku_official\n");
-        $printer->text("www.kasirku.com\n\n");
-
-        // Separator
-        $printer->text("================================\n");
-        $printer->text("Powered by KASIRKU POS v1.0\n");
-        $printer->text("================================\n\n");
-    }
-
-    private function printFormattedLine($printer, $item, $price, $width = 32)
-    {
-        $priceLength = strlen($price);
-        $maxItemLength = $width - $priceLength - 1; // 1 space minimum
-
-        // If item name fits in one line
-        if (strlen($item) <= $maxItemLength) {
-            $spacesNeeded = $width - strlen($item) - $priceLength;
-            if ($spacesNeeded < 1) $spacesNeeded = 1;
-
-            $printer->text($item . str_repeat(' ', $spacesNeeded) . $price . "\n");
-        } else {
-            // Item name is too long, wrap to multiple lines
-            $words = explode(' ', $item);
-            $currentLine = '';
-            $lines = [];
-
-            foreach ($words as $word) {
-                if (strlen($currentLine . ' ' . $word) <= $maxItemLength) {
-                    $currentLine .= ($currentLine ? ' ' : '') . $word;
-                } else {
-                    if ($currentLine) {
-                        $lines[] = $currentLine;
-                        $currentLine = $word;
-                    } else {
-                        // Single word is too long, truncate it
-                        $lines[] = substr($word, 0, $maxItemLength - 3) . '...';
-                        $currentLine = '';
-                    }
-                }
-            }
-            if ($currentLine) {
-                $lines[] = $currentLine;
-            }
-
-            // Print all lines except the last one (without price)
-            for ($i = 0; $i < count($lines) - 1; $i++) {
-                $printer->text($lines[$i] . "\n");
-            }
-
-            // Print last line with price aligned to the right
-            $lastLine = $lines[count($lines) - 1];
-            $spacesNeeded = $width - strlen($lastLine) - $priceLength;
-            if ($spacesNeeded < 1) $spacesNeeded = 1;
-
-            $printer->text($lastLine . str_repeat(' ', $spacesNeeded) . $price . "\n");
-        }
-    }
-
-    private function formatMenuItem($item, $price, $width = 32)
-    {
-        $itemLength = strlen($item);
-        $priceLength = strlen($price);
-        $spacesNeeded = $width - $itemLength - $priceLength;
-
-        // Ensure minimum 1 space
-        if ($spacesNeeded < 1) {
-            $spacesNeeded = 1;
-        }
-
-        return $item . str_repeat(' ', $spacesNeeded) . $price;
+        return number_format((float) $amount, (int) config('pos.currency_precision'), ',', ' ')
+            .' '.config('pos.currency');
     }
 }

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { type Category, type Pagination, type Product, type ProductPhoto } from '@/types/models';
+import { type Category, type Pagination, type Product } from '@/types/models';
 import { Head, router } from '@inertiajs/react';
 import { EditIcon, ImageIcon, PlusIcon, SearchIcon, TrashIcon, UploadIcon, XIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -29,11 +29,11 @@ interface Props {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Vue d’ensemble',
         href: '/admin/dashboard',
     },
     {
-        title: 'Products',
+        title: 'Carte & produits',
         href: '/admin/products',
     },
 ];
@@ -144,13 +144,14 @@ export default function ProductsIndex({ products: initialProducts, categories, p
             },
         );
 
-        if (observerRef.current) {
-            observer.observe(observerRef.current);
+        const observerTarget = observerRef.current;
+        if (observerTarget) {
+            observer.observe(observerTarget);
         }
 
         return () => {
-            if (observerRef.current) {
-                observer.unobserve(observerRef.current);
+            if (observerTarget) {
+                observer.unobserve(observerTarget);
             }
         };
     }, [loadMoreProducts, hasMorePages, isLoadingMore]);
@@ -176,7 +177,7 @@ export default function ProductsIndex({ products: initialProducts, categories, p
     };
 
     // Handle form input changes
-    const handleInputChange = (field: keyof ProductFormData, value: any) => {
+    const handleInputChange = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
         setFormData((prev) => ({
             ...prev,
             [field]: value,
@@ -321,68 +322,68 @@ export default function ProductsIndex({ products: initialProducts, categories, p
         setIsDeleteModalOpen(true);
     };
 
-    // Format currency
+    // Format prices for the restaurant's French menu.
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('id-ID', {
+        return new Intl.NumberFormat('fr-FR', {
             style: 'currency',
-            currency: 'IDR',
+            currency: 'EUR',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
         }).format(amount);
-    };
-
-    // Get primary photo
-    const getPrimaryPhoto = (photos: ProductPhoto[] = []) => {
-        if (photos.length === 0) return null;
-        const primary = photos.find((photo) => photo.is_primary);
-        return primary?.url || photos[0]?.url || null;
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Products Management" />
+            <Head title="Carte et produits" />
 
-            <div className="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-6">
+            <main className="flex min-h-full flex-1 flex-col gap-6 bg-[#f6efe4] p-4 sm:p-6 lg:p-8">
                 {/* Header */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 rounded-[1.75rem] bg-[#211812] px-5 py-6 text-[#fff7e9] shadow-[0_20px_48px_rgba(35,22,14,0.14)] sm:flex-row sm:items-center sm:justify-between sm:px-7">
                     <div>
-                        <h1 className="text-2xl font-semibold">Products Management</h1>
-                        <p className="text-muted-foreground">Manage your product catalog</p>
+                        <p className="text-xs font-black tracking-[0.18em] text-[#ef9367] uppercase">Carte Teisseire Pizza</p>
+                        <h1 className="mt-2 text-3xl font-black tracking-[-0.035em]">Produits</h1>
+                        <p className="mt-2 text-sm text-[#d8c7b4]">Gérez les recettes, les boissons, les prix et les visuels du menu.</p>
                     </div>
 
                     <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
                         <DialogTrigger asChild>
-                            <Button onClick={() => resetForm()}>
+                            <Button
+                                onClick={() => resetForm()}
+                                className="min-h-11 rounded-xl bg-[#d8562a] px-5 font-bold text-white hover:bg-[#ef6840] focus-visible:ring-2 focus-visible:ring-[#ffd6bc]"
+                            >
                                 <PlusIcon />
-                                Add Product
+                                Ajouter un produit
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+                        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-[#ddcfbd] bg-[#fffaf2]">
                             <DialogHeader>
-                                <DialogTitle>Add New Product</DialogTitle>
-                                <DialogDescription>Create a new product for your catalog</DialogDescription>
+                                <DialogTitle>Ajouter un produit</DialogTitle>
+                                <DialogDescription>Créez une nouvelle recette ou boisson pour la carte.</DialogDescription>
                             </DialogHeader>
 
                             <div className="space-y-4">
                                 {/* Product Name */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="name">Product Name</Label>
+                                    <Label htmlFor="name">Nom du produit</Label>
                                     <Input
                                         id="name"
                                         value={formData.name}
                                         onChange={(e) => handleInputChange('name', e.target.value)}
-                                        placeholder="Enter product name"
+                                        placeholder="Ex. Margherita"
+                                        className="min-h-11"
                                     />
                                     {errors.name && <p className="text-sm text-red-600">{errors.name}</p>}
                                 </div>
 
                                 {/* Category */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="category">Category</Label>
+                                    <Label htmlFor="category">Catégorie</Label>
                                     <Select
                                         value={formData.category_id.toString()}
                                         onValueChange={(value) => handleInputChange('category_id', parseInt(value))}
                                     >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a category" />
+                                        <SelectTrigger className="min-h-11">
+                                            <SelectValue placeholder="Sélectionner une catégorie" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {categories.map((category) => (
@@ -397,23 +398,24 @@ export default function ProductsIndex({ products: initialProducts, categories, p
 
                                 {/* Price */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="price">Price (IDR)</Label>
+                                    <Label htmlFor="price">Prix (€)</Label>
                                     <Input
                                         id="price"
                                         type="number"
                                         value={formData.price}
                                         onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || '')}
-                                        placeholder="Enter price"
+                                        placeholder="Ex. 10,50"
                                         min="0"
-                                        step="1000"
+                                        step="0.01"
+                                        className="min-h-11"
                                     />
                                     {errors.price && <p className="text-sm text-red-600">{errors.price}</p>}
                                 </div>
 
                                 {/* Photos */}
                                 <div className="space-y-2">
-                                    <Label>Product Photos</Label>
-                                    <div className="rounded-lg border-2 border-dashed border-gray-300 p-4">
+                                    <Label>Photos du produit</Label>
+                                    <div className="rounded-xl border-2 border-dashed border-[#cfbda7] bg-[#f9efe2] p-5">
                                         <div className="text-center">
                                             <UploadIcon className="mx-auto h-12 w-12 text-gray-400" />
                                             <div className="mt-2">
@@ -425,11 +427,14 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                                                     className="hidden"
                                                     id="photo-upload"
                                                 />
-                                                <Label htmlFor="photo-upload" className="cursor-pointer text-sm text-blue-600 hover:text-blue-500">
-                                                    Click to upload photos
+                                                <Label
+                                                    htmlFor="photo-upload"
+                                                    className="inline-flex min-h-11 cursor-pointer items-center rounded-lg px-3 text-sm font-bold text-[#b84523] focus-within:ring-2 focus-within:ring-[#d8562a] hover:bg-[#f1dfca]"
+                                                >
+                                                    Choisir des photos
                                                 </Label>
                                             </div>
-                                            <p className="text-xs text-gray-500">PNG, JPG up to 5MB each</p>
+                                            <p className="text-xs text-[#75675b]">PNG, JPG ou WebP, 5 Mo maximum par image</p>
                                         </div>
                                     </div>
 
@@ -440,14 +445,15 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                                                 <div key={index} className="relative">
                                                     <img
                                                         src={URL.createObjectURL(photo)}
-                                                        alt={`Upload ${index + 1}`}
+                                                        alt={`Nouvelle photo ${index + 1}`}
                                                         className="h-20 w-full rounded object-cover"
                                                     />
                                                     <Button
                                                         type="button"
                                                         variant="destructive"
                                                         size="icon"
-                                                        className="absolute -top-2 -right-2 h-6 w-6"
+                                                        className="absolute -top-2 -right-2 size-9 after:absolute after:-inset-1"
+                                                        aria-label={`Retirer la photo ${index + 1}`}
                                                         onClick={() => removePhoto(index)}
                                                     >
                                                         <XIcon className="h-3 w-3" />
@@ -461,11 +467,15 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                             </div>
 
                             <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={isLoading}>
-                                    Cancel
+                                <Button variant="outline" className="min-h-11" onClick={() => setIsCreateModalOpen(false)} disabled={isLoading}>
+                                    Annuler
                                 </Button>
-                                <Button onClick={handleCreate} disabled={isLoading || !formData.name || !formData.category_id || !formData.price}>
-                                    {isLoading ? 'Creating...' : 'Create Product'}
+                                <Button
+                                    className="min-h-11"
+                                    onClick={handleCreate}
+                                    disabled={isLoading || !formData.name || !formData.category_id || !formData.price}
+                                >
+                                    {isLoading ? 'Création…' : 'Créer le produit'}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
@@ -473,23 +483,24 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                 </div>
 
                 {/* Filters */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                    <div className="relative max-w-md">
+                <div className="flex flex-col gap-3 rounded-2xl border border-[#ddcfbd] bg-[#fffaf2] p-4 shadow-[0_8px_24px_rgba(64,39,23,0.04)] sm:flex-row sm:items-center">
+                    <div className="relative min-w-0 flex-1 sm:max-w-md">
                         <SearchIcon className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                         <Input
-                            placeholder="Search products..."
+                            aria-label="Rechercher un produit"
+                            placeholder="Rechercher un produit…"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10"
+                            className="min-h-11 pl-10"
                         />
                     </div>
 
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                        <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="All Categories" />
+                        <SelectTrigger className="min-h-11 w-full sm:w-[220px]">
+                            <SelectValue placeholder="Toutes les catégories" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Categories</SelectItem>
+                            <SelectItem value="all">Toutes les catégories</SelectItem>
                             {categories.map((category) => (
                                 <SelectItem key={category.id} value={category.id.toString()}>
                                     {category.name}
@@ -500,14 +511,23 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                 </div>
 
                 {/* Products Grid */}
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {filteredProducts.map((product) => (
-                        <Card key={product.id} className="overflow-hidden">
-                            <div className="relative aspect-square bg-gray-100">
+                        <Card
+                            key={product.id}
+                            className="overflow-hidden rounded-2xl border-[#ddcfbd] bg-[#fffaf2] shadow-[0_10px_28px_rgba(64,39,23,0.05)] transition-transform hover:-translate-y-0.5 motion-reduce:transform-none"
+                        >
+                            <div className="relative aspect-[4/3] bg-[#eadfce]">
                                 {product.photos && product.photos.length > 0 ? (
                                     product.photos.length === 1 ? (
                                         // Single image - no carousel needed
-                                        <img src={product.photos[0].url} alt={product.name} className="h-full w-full object-cover" />
+                                        <img
+                                            src={product.photos[0].url}
+                                            alt={product.name}
+                                            className="h-full w-full object-cover"
+                                            loading="lazy"
+                                            decoding="async"
+                                        />
                                     ) : (
                                         // Multiple images - use carousel
                                         <Carousel className="aspect-square w-full">
@@ -518,12 +538,14 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                                                             src={photo.url}
                                                             alt={`${product.name} - Photo ${index + 1}`}
                                                             className="h-full w-full object-cover"
+                                                            loading="lazy"
+                                                            decoding="async"
                                                         />
                                                     </CarouselItem>
                                                 ))}
                                             </CarouselContent>
-                                            <CarouselPrevious />
-                                            <CarouselNext />
+                                            <CarouselPrevious className="size-11" />
+                                            <CarouselNext className="size-11" />
                                             <CarouselIndicators />
                                         </Carousel>
                                     )
@@ -535,22 +557,22 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                             </div>
 
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-lg">{product.name}</CardTitle>
+                                <CardTitle className="text-lg font-black text-[#2d211a]">{product.name}</CardTitle>
                                 <div className="flex items-center justify-between">
                                     <Badge variant="secondary">{product.category?.name}</Badge>
-                                    <span className="text-lg font-semibold text-green-600">{formatCurrency(product.price)}</span>
+                                    <span className="text-lg font-black text-[#b84523] tabular-nums">{formatCurrency(product.price)}</span>
                                 </div>
                             </CardHeader>
 
                             <CardContent className="pt-0">
                                 <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="flex-1" onClick={() => openEditModal(product)}>
+                                    <Button variant="outline" size="sm" className="min-h-11 flex-1" onClick={() => openEditModal(product)}>
                                         <EditIcon className="h-4 w-4" />
-                                        Edit
+                                        Modifier
                                     </Button>
-                                    <Button variant="destructive" size="sm" className="flex-1" onClick={() => openDeleteModal(product)}>
+                                    <Button variant="destructive" size="sm" className="min-h-11 flex-1" onClick={() => openDeleteModal(product)}>
                                         <TrashIcon className="h-4 w-4" />
-                                        Delete
+                                        Retirer
                                     </Button>
                                 </div>
                             </CardContent>
@@ -564,10 +586,10 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                         {isLoadingMore ? (
                             <div className="flex items-center gap-2">
                                 <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-gray-900"></div>
-                                <span className="text-muted-foreground">Loading more products...</span>
+                                <span className="text-muted-foreground">Chargement des produits…</span>
                             </div>
                         ) : (
-                            <div className="text-muted-foreground">Scroll down to load more products</div>
+                            <div className="text-muted-foreground">Faites défiler pour afficher la suite</div>
                         )}
                     </div>
                 )}
@@ -577,8 +599,8 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                     <div className="flex justify-center py-8">
                         <div className="text-center text-muted-foreground">
                             <div className="mx-auto mb-4 h-px w-24 bg-border"></div>
-                            <p>You've reached the end of the products list</p>
-                            <p className="mt-1 text-sm">Showing all {filteredProducts.length} products</p>
+                            <p>Tous les produits sont affichés.</p>
+                            <p className="mt-1 text-sm">{filteredProducts.length} produit(s)</p>
                         </div>
                     </div>
                 )}
@@ -587,45 +609,46 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                 {filteredProducts.length === 0 && !isLoadingMore && (
                     <div className="py-12 text-center">
                         <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">No products found</h3>
+                        <h3 className="mt-2 text-sm font-bold text-[#31241d]">Aucun produit trouvé</h3>
                         <p className="mt-1 text-sm text-gray-500">
                             {searchTerm || (categoryFilter && categoryFilter !== 'all')
-                                ? 'Try adjusting your search criteria'
-                                : 'Get started by adding a new product'}
+                                ? 'Modifiez la recherche ou la catégorie sélectionnée.'
+                                : 'Ajoutez le premier produit de la carte.'}
                         </p>
                     </div>
                 )}
 
                 {/* Edit Modal */}
                 <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                    <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+                    <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-[#ddcfbd] bg-[#fffaf2]">
                         <DialogHeader>
-                            <DialogTitle>Edit Product</DialogTitle>
-                            <DialogDescription>Update product information</DialogDescription>
+                            <DialogTitle>Modifier le produit</DialogTitle>
+                            <DialogDescription>Mettez à jour les informations et les visuels affichés à la carte.</DialogDescription>
                         </DialogHeader>
 
                         <div className="space-y-4">
                             {/* Product Name */}
                             <div className="space-y-2">
-                                <Label htmlFor="edit-name">Product Name</Label>
+                                <Label htmlFor="edit-name">Nom du produit</Label>
                                 <Input
                                     id="edit-name"
                                     value={formData.name}
                                     onChange={(e) => handleInputChange('name', e.target.value)}
-                                    placeholder="Enter product name"
+                                    placeholder="Ex. Margherita"
+                                    className="min-h-11"
                                 />
                                 {errors.name && <p className="text-sm text-red-600">{errors.name}</p>}
                             </div>
 
                             {/* Category */}
                             <div className="space-y-2">
-                                <Label htmlFor="edit-category">Category</Label>
+                                <Label htmlFor="edit-category">Catégorie</Label>
                                 <Select
                                     value={formData.category_id.toString()}
                                     onValueChange={(value) => handleInputChange('category_id', parseInt(value))}
                                 >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a category" />
+                                    <SelectTrigger className="min-h-11">
+                                        <SelectValue placeholder="Sélectionner une catégorie" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {categories.map((category) => (
@@ -640,15 +663,16 @@ export default function ProductsIndex({ products: initialProducts, categories, p
 
                             {/* Price */}
                             <div className="space-y-2">
-                                <Label htmlFor="edit-price">Price (IDR)</Label>
+                                <Label htmlFor="edit-price">Prix (€)</Label>
                                 <Input
                                     id="edit-price"
                                     type="number"
                                     value={formData.price}
                                     onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || '')}
-                                    placeholder="Enter price"
+                                    placeholder="Ex. 10,50"
                                     min="0"
-                                    step="1000"
+                                    step="0.01"
+                                    className="min-h-11"
                                 />
                                 {errors.price && <p className="text-sm text-red-600">{errors.price}</p>}
                             </div>
@@ -656,17 +680,20 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                             {/* Current Photos */}
                             {selectedProduct?.photos && selectedProduct.photos.length > 0 && (
                                 <div className="space-y-2">
-                                    <Label>Current Photos</Label>
+                                    <Label>Photos actuelles</Label>
                                     <div className="grid grid-cols-3 gap-2">
                                         {selectedProduct.photos.map((photo) => (
                                             <div key={photo.id} className="relative">
-                                                <img src={photo.url} alt="Product" className="h-20 w-full rounded object-cover" />
-                                                {photo.is_primary && <Badge className="absolute top-1 left-1 text-xs">Primary</Badge>}
+                                                <img src={photo.url} alt={selectedProduct.name} className="h-20 w-full rounded object-cover" />
+                                                {photo.is_primary && <Badge className="absolute top-1 left-1 text-xs">Principale</Badge>}
                                                 <Button
                                                     type="button"
                                                     variant={formData.remove_photos.includes(photo.id) ? 'default' : 'destructive'}
                                                     size="icon"
-                                                    className="absolute -top-2 -right-2 h-6 w-6"
+                                                    className="absolute -top-2 -right-2 size-9 after:absolute after:-inset-1"
+                                                    aria-label={
+                                                        formData.remove_photos.includes(photo.id) ? 'Conserver cette photo' : 'Retirer cette photo'
+                                                    }
                                                     onClick={() => {
                                                         if (formData.remove_photos.includes(photo.id)) {
                                                             unmarkPhotoForRemoval(photo.id);
@@ -679,7 +706,7 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                                                 </Button>
                                                 {formData.remove_photos.includes(photo.id) && (
                                                     <div className="bg-opacity-50 absolute inset-0 flex items-center justify-center rounded bg-red-500">
-                                                        <span className="text-xs font-bold text-white">Will Remove</span>
+                                                        <span className="text-xs font-bold text-white">Sera retirée</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -690,8 +717,8 @@ export default function ProductsIndex({ products: initialProducts, categories, p
 
                             {/* Add New Photos */}
                             <div className="space-y-2">
-                                <Label>Add New Photos</Label>
-                                <div className="rounded-lg border-2 border-dashed border-gray-300 p-4">
+                                <Label>Ajouter des photos</Label>
+                                <div className="rounded-xl border-2 border-dashed border-[#cfbda7] bg-[#f9efe2] p-5">
                                     <div className="text-center">
                                         <UploadIcon className="mx-auto h-12 w-12 text-gray-400" />
                                         <div className="mt-2">
@@ -703,11 +730,14 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                                                 className="hidden"
                                                 id="edit-photo-upload"
                                             />
-                                            <Label htmlFor="edit-photo-upload" className="cursor-pointer text-sm text-blue-600 hover:text-blue-500">
-                                                Click to upload new photos
+                                            <Label
+                                                htmlFor="edit-photo-upload"
+                                                className="inline-flex min-h-11 cursor-pointer items-center rounded-lg px-3 text-sm font-bold text-[#b84523] hover:bg-[#f1dfca]"
+                                            >
+                                                Choisir de nouvelles photos
                                             </Label>
                                         </div>
-                                        <p className="text-xs text-gray-500">PNG, JPG up to 5MB each</p>
+                                        <p className="text-xs text-[#75675b]">PNG, JPG ou WebP, 5 Mo maximum par image</p>
                                     </div>
                                 </div>
 
@@ -718,14 +748,15 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                                             <div key={index} className="relative">
                                                 <img
                                                     src={URL.createObjectURL(photo)}
-                                                    alt={`Upload ${index + 1}`}
+                                                    alt={`Nouvelle photo ${index + 1}`}
                                                     className="h-20 w-full rounded object-cover"
                                                 />
                                                 <Button
                                                     type="button"
                                                     variant="destructive"
                                                     size="icon"
-                                                    className="absolute -top-2 -right-2 h-6 w-6"
+                                                    className="absolute -top-2 -right-2 size-9 after:absolute after:-inset-1"
+                                                    aria-label={`Retirer la nouvelle photo ${index + 1}`}
                                                     onClick={() => removePhoto(index)}
                                                 >
                                                     <XIcon className="h-3 w-3" />
@@ -739,11 +770,15 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                         </div>
 
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsEditModalOpen(false)} disabled={isLoading}>
-                                Cancel
+                            <Button variant="outline" className="min-h-11" onClick={() => setIsEditModalOpen(false)} disabled={isLoading}>
+                                Annuler
                             </Button>
-                            <Button onClick={handleEdit} disabled={isLoading || !formData.name || !formData.category_id || !formData.price}>
-                                {isLoading ? 'Updating...' : 'Update Product'}
+                            <Button
+                                className="min-h-11"
+                                onClick={handleEdit}
+                                disabled={isLoading || !formData.name || !formData.category_id || !formData.price}
+                            >
+                                {isLoading ? 'Enregistrement…' : 'Enregistrer le produit'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -753,23 +788,23 @@ export default function ProductsIndex({ products: initialProducts, categories, p
                 <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Delete Product</DialogTitle>
+                            <DialogTitle>Retirer le produit de la carte</DialogTitle>
                             <DialogDescription>
-                                Are you sure you want to delete "{selectedProduct?.name}"? This action cannot be undone.
+                                « {selectedProduct?.name} » sera archivé et ne sera plus proposé à la vente. Les commandes passées resteront intactes.
                             </DialogDescription>
                         </DialogHeader>
 
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isLoading}>
-                                Cancel
+                            <Button variant="outline" className="min-h-11" onClick={() => setIsDeleteModalOpen(false)} disabled={isLoading}>
+                                Annuler
                             </Button>
-                            <Button variant="destructive" onClick={handleDelete} disabled={isLoading}>
-                                {isLoading ? 'Deleting...' : 'Delete Product'}
+                            <Button variant="destructive" className="min-h-11" onClick={handleDelete} disabled={isLoading}>
+                                {isLoading ? 'Archivage…' : 'Retirer de la carte'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-            </div>
+            </main>
         </AppLayout>
     );
 }
