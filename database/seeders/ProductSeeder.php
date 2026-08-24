@@ -12,84 +12,83 @@ class ProductSeeder extends Seeder
     public function run(): void
     {
         $menu = [
-            'Pizzas base tomate' => [
-                ['Margherita', 'Emmental, mozzarella et sauce tomate.', 8.00],
-                ['Romaine', 'Emmental, mozzarella, jambon et sauce tomate.', 10.00],
-                ['Poulet', 'Emmental, mozzarella, poulet et sauce tomate.', 10.00],
-                ['Bolognaise', 'Emmental, mozzarella, viande hachée et sauce tomate.', 10.00],
-                ['Forestière', 'Emmental, mozzarella et champignons.', 10.00],
-                ['Thon', 'Emmental, mozzarella et thon émietté.', 10.00],
-                ['Chèvre', 'Emmental, mozzarella et chèvre.', 10.00],
-                ['Turk', 'Emmental, mozzarella, sucuk et poivrons.', 10.00],
-                ['Kebab', 'Emmental, mozzarella et kebab.', 10.00],
-                ['Anchois', 'Emmental, mozzarella, anchois et câpres.', 10.50],
-                ['Fruits de mer', 'Emmental, mozzarella, fruits de mer et persillade.', 10.50],
-                ['Mexicaine', 'Emmental, mozzarella, viande hachée et poivrons.', 10.50],
-                ['Kiri', 'Emmental, mozzarella, viande hachée et Kiri.', 10.50],
-                ['Saumon', 'Emmental, mozzarella et saumon.', 10.50],
-                ['Tunisienne', 'Emmental, mozzarella, merguez et méchouia.', 10.50],
-                ['Orientale', 'Emmental, mozzarella, merguez, œuf et poivrons.', 10.50],
-                ['Méchouia', 'Thon, méchouia, mozzarella et emmental.', 10.50],
-                ['Végétarienne', 'Emmental, mozzarella, poivrons, oignons et champignons.', 10.50],
-                ['Reine', 'Emmental, mozzarella, jambon et champignons.', 10.50],
-                ['Chorizo', 'Emmental, mozzarella, poivrons et chorizo.', 10.50],
-                ['4 Fromages', 'Emmental, mozzarella, bleu et chèvre.', 10.50],
-                ['Crevettes', 'Emmental, mozzarella, crevettes et persillade.', 10.50],
-                ['Texane', 'Emmental, mozzarella, viande hachée et poivrons.', 10.50],
-                ['Océane', 'Emmental, mozzarella, thon, crevettes et saumon.', 11.00],
-                ['Barbecue', 'Emmental, mozzarella, poulet, viande hachée et sauce barbecue.', 11.00],
-                ['Burger', 'Emmental, mozzarella, viande hachée, cheddar et sauce burger.', 11.00],
-                ['Algérienne', 'Emmental, poulet, viande hachée, kebab et sauce algérienne.', 11.00],
-                ['Chili Thaï', 'Emmental, mozzarella, poulet ou crevettes et sauce chili thaï.', 11.00],
-                ['Cannibale', 'Emmental, mozzarella, poulet, viande hachée et merguez.', 12.00],
-                ['Teisseire', 'Emmental, mozzarella, bleu, chèvre, jambon et champignons.', 12.00],
+            'Pizza Base Tomate' => [
+                ['Marguarita', 'Emmental, Mozza', null, 8.00],
+                ['Romaine', 'Emmental, Mozza, Jambon', null, 10.00],
+                ['Poulet Merguez', 'Emmental, Mozza, Merguez', 'Le menu imprimé affiche « Poule » ; corrigez le nom dans l’admin si besoin.', 10.00],
+                ['Bolognaise', 'Emmental, Mozza, Viande hachée', null, 10.00],
+                ['Forestière', 'Emmental, Mozza, Champignons', null, 10.00],
+                ['Thon', 'Emmental, Mozza, Thon émietté', null, 10.00],
+                ['Poulet', 'Emmental, Mozza, Poulet', null, 10.00],
+                ['Chèvre', 'Emmental, Mozza, Chèvre', null, 10.00],
+                ['Turk', 'Emmental, Mozza, Sucuk, Poivrons', null, 10.00],
+                ['Kebab', 'Emmental, Mozza, Kebab', null, 10.00],
+                ['Anchois', 'Emmental, Mozza, Anchois, Câpres', null, 10.50],
+                ['Fruit de Mer', 'Emmental, Mozza, Fruits de mer, Persillade', null, 10.50],
+                ['Mexicaine', 'Emmental, Mozza, Viande hachée, Poivron', null, 10.50],
+                ['Kiri', 'Emmental, Mozza, Viande hachée, Kiri', null, 10.50],
+                ['Saumon', 'Emmental, Mozza, Saumon', null, 10.50],
+                ['Tunisienne', 'Emmental, Mozza, Merguez, Mechouia', null, 10.50],
+                ['Orientale', 'Emmental, Mozza, Merguez, Œuf, Poivrons', null, 10.50],
+                ['Mechouia', 'Thon, Mechouia, Mozza, Emmental', null, 10.50],
+                ['Végétarienne', 'Emmental, Mozza, Poivron, Oignons, Champignons', null, 10.50],
+                ['Reine', 'Emmental, Mozza, Jambon, Champignons', null, 10.50],
+                ['Chorizo', 'Emmental, Poivron, Mozza, Chorizo', null, 10.50],
+                ['4 Fromages', 'Emmental, Mozza, Bleu, Chèvre', null, 10.50],
+                ['Crevettes', 'Emmental, Mozza, Crevette, Persillade', null, 10.50],
+                ['Texane', 'Emmental, Mozza, Viande hachée, Poivrons', null, 10.50],
+                ['Océane', 'Emmental, Mozza, Thon, Crevette, Saumon', null, 11.00],
+                ['Barbecue', 'Emmental, Mozza, Poulet, Viande hachée, Sauce barbecue', null, 11.00],
+                ['Burger', 'Emmental, Mozza, Viande hachée, Cheddar, Sauce Biggy Burger', null, 11.00],
+                ['Algérienne', 'Emmental, Poulet, Viande hachée, Kebab, Sauce Algérienne', null, 11.00],
+                ['Chili Thaï', 'Emmental, Mozza, Poulet ou crevette, Sauce chili thaï', null, 11.00],
+                ['Cannibale', 'Emmental, Mozza, Poulet, Viande hachée, Merguez', null, 12.00],
+                ['Teisseire', 'Emmental, Mozza, Bleu, Chèvre, Jambon, Champignons', null, 12.00],
             ],
-            'Pizzas base crème' => [
-                ['Norvégienne', 'Emmental, crème, mozzarella et saumon.', 11.00],
-                ['Boisée', 'Emmental, sauce fromagère, mozzarella, poulet, poivrons ou champignons.', 11.00],
-                ['Tartiflette', 'Emmental, crème, mozzarella, oignons, reblochon, pommes de terre et lardons.', 11.00],
-                ['Savoyarde', 'Emmental, crème, mozzarella, jambon et reblochon.', 11.00],
-                ['Boursin', 'Emmental, crème, mozzarella, poulet ou jambon ou viande hachée ou saumon et Boursin.', 11.00],
-                ['Dijonnaise', 'Emmental, crème, mozzarella, poulet et moutarde.', 11.00],
-                ['Ravioles', 'Emmental, crème, mozzarella, ravioles et saumon, poulet, jambon ou viande hachée.', 11.00],
-                ['Chèvre Miel', 'Emmental, crème, mozzarella, chèvre et miel.', 11.00],
-                ['Curry', 'Emmental, crème, mozzarella, sauce curry et poulet.', 11.00],
-                ['Raclette', 'Emmental, crème, mozzarella, raclette, jambon et pommes de terre.', 11.00],
-                ['Carbonara', 'Emmental, crème, mozzarella, lardons, œuf et olives.', 11.00],
+            'Pizza Base Crème' => [
+                ['Norvégienne', 'Emmental, Crème, Mozza, Saumon', null, 11.00],
+                ['Boisée', 'Emmental, Sauce Fromagère, Mozza, Poulet, Poivrons ou Champignons', null, 11.00],
+                ['Tartiflette', 'Emmental, Crème, Mozza, Oignons, Reblochon, Pomme de terre, Lardons', null, 11.00],
+                ['Savoyarde', 'Emmental, Crème, Mozza, Jambon, Reblochon', null, 11.00],
+                ['Boursin', 'Emmental, Crème, Mozza, Poulet ou Jambon ou Viande hachée ou Saumon, Boursin', null, 11.00],
+                ['Dijonnaise', 'Emmental, Crème, Mozza, Poulet, Moutarde', null, 11.00],
+                ['Ravioles', 'Emmental, Crème, Mozza, Ravioles, Saumon ou Poulet ou Jambon ou Viande hachée', null, 11.00],
+                ['Chèvre Miel', 'Emmental, Crème, Mozza, Chèvre, Miel', null, 11.00],
+                ['Curry', 'Emmental, Crème, Mozza, Sauce Curry, Poulet', null, 11.00],
+                ['Raclette', 'Emmental, Crème, Mozza, Raclette, Jambon, Pomme de terre', null, 11.00],
+                ['Carbonara', 'Emmental, Crème, Mozza, Lardon, Œuf, Olive', null, 11.00],
             ],
             'Formules' => [
-                ['Formule 3 pizzas + boisson', 'Trois pizzas au choix et une bouteille de 1,5 L.', 30.00],
-                ['Formule 3 Margherita', 'Trois pizzas Margherita.', 20.00],
+                ['Formule 3 pizzas + boisson', null, '3 pizzas au choix + 1 bouteille 1,5 L.', 30.00],
+                ['Formule 3 Marguarita', null, '3 pizzas Marguarita.', 20.00],
             ],
-            'Gratins de ravioles' => [
-                ['Gratin de ravioles au saumon', 'Gratin de ravioles généreux au saumon.', 9.00],
-                ['Gratin de ravioles au poulet', 'Gratin de ravioles généreux au poulet.', 9.00],
-                ['Gratin de ravioles aux lardons', 'Gratin de ravioles généreux aux lardons.', 9.00],
+            'Gratins de Ravioles' => [
+                ['Gratin de Ravioles', null, 'Au choix : saumon, poulet ou lardons.', 9.00],
             ],
-            'Paninis' => [
-                ['Panini poulet', 'Panini chaud garni au poulet.', 5.00],
-                ['Panini viande hachée', 'Panini chaud garni à la viande hachée.', 5.00],
+            'Panini' => [
+                ['Panini Poulet', 'Poulet', null, 5.00],
+                ['Panini Viande hachée', 'Viande hachée', null, 5.00],
             ],
             'Desserts' => [
-                ['Tiramisu', 'Tiramisu maison.', 3.00],
+                ['Tiramisu', null, 'Dessert maison.', 3.00],
             ],
             'Boissons' => [
-                ['Bouteille 1,5 L', 'Boisson fraîche en bouteille de 1,5 L.', 3.00],
-                ['Canette 33 cl', 'Boisson fraîche en canette de 33 cl.', 1.50],
-                ['Eau + sirop', 'Eau fraîche avec sirop au choix.', 1.50],
+                ['Bouteille 1,5 L', null, 'Boisson fraîche en bouteille.', 3.00],
+                ['Canette 33 cl', null, 'Boisson fraîche en canette.', 1.50],
+                ['Eau + Sirop', null, 'Eau fraîche avec sirop.', 1.50],
             ],
             'Suppléments' => [
-                ['Supplément au choix', 'Supplément hors viande.', 1.00],
-                ['Supplément viande', 'Supplément viande au choix.', 1.50],
+                ['Supplément autres', null, 'Supplément hors viande.', 1.00],
+                ['Supplément viande', null, 'Supplément viande.', 1.50],
             ],
         ];
 
         $photos = [
-            'Pizzas base tomate' => '/images/menu-pizza-tomate.webp',
-            'Pizzas base crème' => '/images/menu-pizza-creme.webp',
+            'Pizza Base Tomate' => '/images/menu-pizza-tomate.webp',
+            'Pizza Base Crème' => '/images/menu-pizza-creme.webp',
             'Formules' => '/images/menu-pizza-tomate.webp',
-            'Gratins de ravioles' => '/images/menu-gratin-ravioles.webp',
-            'Paninis' => '/images/menu-panini-tiramisu.webp',
+            'Gratins de Ravioles' => '/images/menu-gratin-ravioles.webp',
+            'Panini' => '/images/menu-panini-tiramisu.webp',
             'Desserts' => '/images/menu-panini-tiramisu.webp',
             'Boissons' => '/images/menu-boissons.webp',
             'Suppléments' => '/images/menu-pizza-tomate.webp',
@@ -97,12 +96,23 @@ class ProductSeeder extends Seeder
 
         foreach ($menu as $categoryName => $products) {
             $category = Category::query()->where('name', $categoryName)->firstOrFail();
+            $expectedNames = array_map(static fn (array $product): string => $product[0], $products);
+            $staleProductIds = Product::query()
+                ->where('category_id', $category->id)
+                ->whereNotIn('name', $expectedNames)
+                ->pluck('id');
 
-            foreach ($products as $sortOrder => [$name, $description, $price]) {
+            if ($staleProductIds->isNotEmpty()) {
+                ProductPhotos::query()->whereIn('product_id', $staleProductIds)->delete();
+                Product::query()->whereKey($staleProductIds)->delete();
+            }
+
+            foreach ($products as $sortOrder => [$name, $ingredients, $description, $price]) {
                 $product = Product::withTrashed()->updateOrCreate(
                     ['name' => $name, 'category_id' => $category->id],
                     [
                         'description' => $description,
+                        'ingredients' => $ingredients,
                         'price' => $price,
                         'is_available' => true,
                         'sort_order' => $sortOrder + 1,

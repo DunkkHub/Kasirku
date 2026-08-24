@@ -5,7 +5,7 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Notification;
 
 test('reset password link screen can be rendered', function () {
-    $response = $this->get('/forgot-password');
+    $response = $this->get('/admin/forgot-password');
 
     $response->assertStatus(200);
 });
@@ -13,9 +13,9 @@ test('reset password link screen can be rendered', function () {
 test('reset password link can be requested', function () {
     Notification::fake();
 
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
-    $this->post('/forgot-password', ['email' => $user->email]);
+    $this->post('/admin/forgot-password', ['email' => $user->email]);
 
     Notification::assertSentTo($user, ResetPassword::class);
 });
@@ -23,12 +23,12 @@ test('reset password link can be requested', function () {
 test('reset password screen can be rendered', function () {
     Notification::fake();
 
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
-    $this->post('/forgot-password', ['email' => $user->email]);
+    $this->post('/admin/forgot-password', ['email' => $user->email]);
 
     Notification::assertSentTo($user, ResetPassword::class, function ($notification) {
-        $response = $this->get('/reset-password/'.$notification->token);
+        $response = $this->get('/admin/reset-password/'.$notification->token);
 
         $response->assertStatus(200);
 
@@ -39,12 +39,12 @@ test('reset password screen can be rendered', function () {
 test('password can be reset with valid token', function () {
     Notification::fake();
 
-    $user = User::factory()->create();
+    $user = User::factory()->admin()->create();
 
-    $this->post('/forgot-password', ['email' => $user->email]);
+    $this->post('/admin/forgot-password', ['email' => $user->email]);
 
     Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
-        $response = $this->post('/reset-password', [
+        $response = $this->post('/admin/reset-password', [
             'token' => $notification->token,
             'email' => $user->email,
             'password' => 'password',
@@ -57,4 +57,15 @@ test('password can be reset with valid token', function () {
 
         return true;
     });
+});
+
+test('reset password links are not sent to non admin accounts', function () {
+    Notification::fake();
+
+    $user = User::factory()->create();
+
+    $this->post('/admin/forgot-password', ['email' => $user->email])
+        ->assertSessionHas('status');
+
+    Notification::assertNothingSent();
 });

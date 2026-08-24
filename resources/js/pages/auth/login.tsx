@@ -16,7 +16,7 @@ interface LoginProps {
 
 export default function Login({ status, canResetPassword }: LoginProps) {
     return (
-        <AuthLayout title="Connexion" description="Connectez-vous pour gérer les commandes et le service.">
+        <AuthLayout title="Connexion" description="Connectez-vous pour gérer la carte et les informations du restaurant.">
             <Head title="Connexion" />
 
             {status && <AuthStatus>{status}</AuthStatus>}

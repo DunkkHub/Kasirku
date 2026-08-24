@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
 
@@ -40,13 +42,80 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $this->safeUser($request->user()),
             ],
-            'ziggy' => fn (): array => [
-                ...(new Ziggy)->toArray(),
-                'location' => $request->url(),
-            ],
+            'ziggy' => fn (): array => $this->safeZiggy($request),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function safeUser(?User $user): ?array
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => null,
+            'is_admin' => $user->is_admin,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function safeZiggy(Request $request): array
+    {
+        $ziggy = (new Ziggy)->toArray();
+        $user = $request->user();
+
+        if ($user?->can('access-admin')) {
+            $patterns = [
+                'home',
+                'menu',
+                'login',
+                'logout',
+                'admin.dashboard',
+                'products.*',
+                'categories.*',
+                'restaurant-settings.*',
+                'verification.*',
+                'password.*',
+            ];
+        } elseif ($user) {
+            $patterns = [
+                'home',
+                'menu',
+                'login',
+                'logout',
+                'verification.*',
+                'password.*',
+            ];
+        } else {
+            $patterns = [
+                'home',
+                'menu',
+                'login',
+                'password.request',
+                'password.email',
+                'password.reset',
+                'password.store',
+            ];
+        }
+
+        $ziggy['routes'] = collect($ziggy['routes'] ?? [])
+            ->filter(fn (mixed $route, string $name): bool => collect($patterns)->contains(fn (string $pattern): bool => Str::is($pattern, $name)))
+            ->all();
+
+        return [
+            ...$ziggy,
+            'location' => $request->url(),
         ];
     }
 }

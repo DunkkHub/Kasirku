@@ -17,12 +17,21 @@ class SecurityHeaders
         $response->headers->set('X-Permitted-Cross-Domain-Policies', 'none');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+        $scriptSrc = "'self' 'unsafe-inline'";
+        $connectSrc = "'self'";
+
+        if (app()->environment('local')) {
+            $scriptSrc .= " 'unsafe-eval' http://localhost:* http://127.0.0.1:*";
+            $connectSrc .= ' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*';
+        }
+
         $response->headers->set(
             'Content-Security-Policy',
-            "base-uri 'self'; frame-ancestors 'none'; object-src 'none'"
+            "default-src 'self'; script-src {$scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src {$connectSrc}; form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'"
         );
 
-        if ($request->user() || $request->is('admin/*', 'settings/*', 'checkout/*', 'order/*')) {
+        if ($request->user() || $request->is('admin', 'admin/*')) {
             $response->headers->set('Cache-Control', 'no-store, private');
         }
 

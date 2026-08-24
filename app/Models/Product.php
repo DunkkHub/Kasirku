@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Product extends Model
 {
@@ -21,6 +22,7 @@ class Product extends Model
     protected $fillable = [
         'name',
         'description',
+        'ingredients',
         'category_id',
         'price',
         'is_available',
@@ -36,6 +38,15 @@ class Product extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saving(function (Product $product): void {
+            if ($product->isDirty('name')) {
+                $product->slug = static::uniqueSlug($product->name, $product->id);
+            }
+        });
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
@@ -49,5 +60,23 @@ class Product extends Model
     public function primaryPhoto()
     {
         return $this->hasOne(ProductPhotos::class)->where('is_primary', true);
+    }
+
+    public static function uniqueSlug(string $name, int|string|null $ignoreId = null): string
+    {
+        $base = Str::slug($name) ?: 'plat';
+        $slug = $base;
+        $suffix = 2;
+
+        while (static::query()
+            ->withTrashed()
+            ->where('slug', $slug)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()
+        ) {
+            $slug = $base.'-'.$suffix++;
+        }
+
+        return $slug;
     }
 }

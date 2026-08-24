@@ -11,7 +11,7 @@ export function AppSidebarHeader({ breadcrumbs = [] }: { breadcrumbs?: Breadcrum
             </div>
             <div className="hidden items-center gap-2 rounded-full border border-[#ddcfbd] bg-[#f6efe4] px-3 py-1.5 text-xs font-semibold text-[#6d5a4e] sm:flex">
                 <span className="size-2 rounded-full bg-[#4f795d]" aria-hidden="true" />
-                Espace administrateur
+                CMS carte
             </div>
         </header>
     );

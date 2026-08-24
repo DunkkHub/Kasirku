@@ -3,8 +3,8 @@ import AppLogoIcon from './app-logo-icon';
 export default function AppLogo({ variant = 'sidebar' }: { variant?: 'sidebar' | 'header' }) {
     return (
         <>
-            <div className="flex aspect-square size-10 items-center justify-center rounded-xl bg-[#d8562a] text-[#fffaf2] shadow-[0_8px_24px_rgba(216,86,42,0.28)]">
-                <AppLogoIcon className="size-7" aria-hidden="true" />
+            <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-xl border border-[#f3d8c6]/25 bg-black px-1 shadow-[0_8px_24px_rgba(0,0,0,0.22)]">
+                <AppLogoIcon className="h-9 w-full" aria-hidden="true" />
             </div>
             <div className="ml-1.5 grid flex-1 text-left">
                 <span

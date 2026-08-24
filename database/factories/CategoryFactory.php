@@ -19,6 +19,10 @@ class CategoryFactory extends Factory
     {
         return [
             'name' => ucfirst(fake()->unique()->words(2, true)),
+            'description' => fake()->sentence(),
+            'image' => null,
+            'is_active' => true,
+            'sort_order' => fake()->numberBetween(1, 100),
         ];
     }
 }

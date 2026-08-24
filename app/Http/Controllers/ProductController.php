@@ -2,65 +2,68 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Admin\SaveProductRequest;
+use App\Http\Requests\Admin\ToggleProductAvailabilityRequest;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductPhotos;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Inertia\Response;
 use Throwable;
 
 class ProductController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
+    public function index(Request $request): Response|JsonResponse
     {
-        $query = Product::with(['category', 'photos']);
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:80'],
+            'category' => ['nullable', 'regex:/\A(all|\d+)\z/'],
+            'availability' => ['nullable', Rule::in(['all', 'available', 'unavailable'])],
+        ]);
 
-        // Filtrer par recherche.
-        if ($request->has('search') && $request->search) {
-            $searchTerm = $request->search;
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('name', 'like', "%{$searchTerm}%")
-                    ->orWhereHas('category', function ($q2) use ($searchTerm) {
-                        $q2->where('name', 'like', "%{$searchTerm}%");
-                    });
-            });
-        }
-        // Filtrer par catégorie.
-        if ($request->has('category') && $request->category && $request->category !== 'all') {
-            $query->where('category_id', $request->category);
-        }
+        $query = Product::query()
+            ->with(['category', 'photos'])
+            ->when(filled($filters['search'] ?? null), function ($query) use ($filters): void {
+                $search = $filters['search'];
+                $query->where(function ($builder) use ($search): void {
+                    $builder->where('name', 'like', "%{$search}%")
+                        ->orWhere('ingredients', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhereHas('category', fn ($category) => $category->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->when(filled($filters['category'] ?? null) && $filters['category'] !== 'all', function ($query) use ($filters): void {
+                $query->where('category_id', (int) $filters['category']);
+            })
+            ->when(($filters['availability'] ?? null) === 'available', fn ($query) => $query->where('is_available', true))
+            ->when(($filters['availability'] ?? null) === 'unavailable', fn ($query) => $query->where('is_available', false))
+            ->orderBy(
+                Category::query()
+                    ->select('sort_order')
+                    ->whereColumn('categories.id', 'products.category_id')
+                    ->limit(1)
+            )
+            ->orderBy('sort_order')
+            ->orderBy('name');
 
-        $perPage = 12;
-        $products = $query->latest()->paginate($perPage);
+        $products = $query->paginate(200)->withQueryString();
 
-        $categories = Category::all();
+        $categories = Category::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
 
-        // Les pages suivantes du défilement infini reçoivent du JSON.
-        // Les visites Inertia restent exclues, car axios envoie aussi X-Requested-With.
-        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax()) && $request->has('page') && $request->page > 1) {
-            return response()->json([
-                'products' => $products->items(),
-                'pagination' => [
-                    'current_page' => $products->currentPage(),
-                    'last_page' => $products->lastPage(),
-                    'per_page' => $products->perPage(),
-                    'total' => $products->total(),
-                    'has_more_pages' => $products->hasMorePages(),
-                ],
-            ]);
-        }
-
-        // Rendu initial de la page Inertia.
-        return Inertia::render('admin/products/index', [
+        $props = [
             'products' => $products->items(),
             'categories' => $categories,
+            'filters' => $filters,
             'pagination' => [
                 'current_page' => $products->currentPage(),
                 'last_page' => $products->lastPage(),
@@ -68,42 +71,35 @@ class ProductController extends Controller
                 'total' => $products->total(),
                 'has_more_pages' => $products->hasMorePages(),
             ],
-        ]);
+        ];
+
+        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
+            return response()->json($props);
+        }
+
+        return Inertia::render('admin/products/index', $props);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function create(): never
     {
         abort(404, 'Page introuvable.');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(SaveProductRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'description' => ['nullable', 'string', 'max:1000'],
-            'category_id' => ['required', 'integer', 'exists:categories,id'],
-            'price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:9999.99'],
-            'is_available' => ['sometimes', 'boolean'],
-            'photos' => ['nullable', 'array', 'max:6'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096', 'dimensions:max_width=4096,max_height=4096'],
-        ]);
-
+        $validated = $request->validated();
         $storedPaths = [];
 
         try {
             DB::transaction(function () use ($request, $validated, &$storedPaths): void {
                 $product = Product::create([
                     'name' => trim($validated['name']),
-                    'description' => $validated['description'] ?? null,
+                    'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
+                    'ingredients' => filled($validated['ingredients'] ?? null) ? trim($validated['ingredients']) : null,
                     'category_id' => $validated['category_id'],
                     'price' => $validated['price'],
-                    'is_available' => $validated['is_available'] ?? true,
+                    'is_available' => (bool) ($validated['is_available'] ?? true),
+                    'sort_order' => (int) ($validated['sort_order'] ?? 0),
                 ]);
 
                 foreach ($request->file('photos', []) as $index => $photo) {
@@ -120,52 +116,27 @@ class ProductController extends Controller
             throw $exception;
         }
 
-        return redirect()->route('products.index')->with('success', 'Produit créé.');
+        return redirect()->route('products.index')->with('success', 'Plat ajouté à la carte.');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show(Product $product): never
     {
         abort(404, 'Page introuvable.');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function edit(Product $product): never
     {
         abort(404, 'Page introuvable.');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function update(SaveProductRequest $request, Product $product): RedirectResponse
     {
-        $product = Product::findOrFail($id);
-
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'description' => ['nullable', 'string', 'max:1000'],
-            'category_id' => ['required', 'integer', 'exists:categories,id'],
-            'price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:9999.99'],
-            'is_available' => ['sometimes', 'boolean'],
-            'photos' => ['nullable', 'array', 'max:6'],
-            'photos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096', 'dimensions:max_width=4096,max_height=4096'],
-            'remove_photos' => ['nullable', 'array', 'max:6'],
-            'remove_photos.*' => [
-                'integer',
-                'distinct',
-                Rule::exists('product_photos', 'id')->where('product_id', $product->id),
-            ],
-        ]);
-
+        $validated = $request->validated();
         $removeIds = collect($validated['remove_photos'] ?? []);
         $remainingCount = $product->photos()->whereNotIn('id', $removeIds)->count();
+
         if ($remainingCount + count($request->file('photos', [])) > 6) {
-            throw ValidationException::withMessages(['photos' => 'Un produit peut avoir au maximum 6 photos.']);
+            throw ValidationException::withMessages(['photos' => 'Un plat peut avoir au maximum 6 photos.']);
         }
 
         $storedPaths = [];
@@ -175,16 +146,18 @@ class ProductController extends Controller
             DB::transaction(function () use ($request, $validated, $product, $removeIds, &$storedPaths, &$filesToDelete): void {
                 $product->update([
                     'name' => trim($validated['name']),
-                    'description' => $validated['description'] ?? null,
+                    'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
+                    'ingredients' => filled($validated['ingredients'] ?? null) ? trim($validated['ingredients']) : null,
                     'category_id' => $validated['category_id'],
                     'price' => $validated['price'],
-                    'is_available' => $validated['is_available'] ?? $product->is_available,
+                    'is_available' => (bool) ($validated['is_available'] ?? $product->is_available),
+                    'sort_order' => (int) ($validated['sort_order'] ?? 0),
                 ]);
 
                 foreach ($product->photos()->whereIn('id', $removeIds)->get() as $photo) {
-                    $urlPath = parse_url($photo->url, PHP_URL_PATH);
-                    if (str_starts_with((string) $urlPath, '/storage/products/')) {
-                        $filesToDelete[] = str_replace('/storage/', '', $urlPath);
+                    $file = $this->storagePathFromUrl($photo->url, 'products');
+                    if ($file) {
+                        $filesToDelete[] = $file;
                     }
                     $photo->delete();
                 }
@@ -211,20 +184,35 @@ class ProductController extends Controller
 
         Storage::disk('public')->delete($filesToDelete);
 
-        return redirect()->route('products.index')->with('success', 'Produit mis à jour.');
+        return redirect()->route('products.index')->with('success', 'Plat mis à jour.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function destroy(Product $product): RedirectResponse
     {
-        $product = Product::findOrFail($id);
-
-        // L’archivage préserve les lignes vendues, leurs prix et leurs photos.
         $product->update(['is_available' => false]);
         $product->delete();
 
-        return redirect()->route('products.index')->with('success', 'Produit archivé.');
+        return redirect()->route('products.index')->with('success', 'Plat supprimé de la carte.');
+    }
+
+    public function toggleAvailability(ToggleProductAvailabilityRequest $request, Product $product): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        $product->update(['is_available' => $validated['is_available']]);
+
+        return back()->with('success', $product->is_available ? 'Plat disponible.' : 'Plat indisponible.');
+    }
+
+    private function storagePathFromUrl(string $url, string $directory): ?string
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+        $prefix = '/storage/'.$directory.'/';
+
+        if (! is_string($path) || ! str_starts_with($path, $prefix)) {
+            return null;
+        }
+
+        return str_replace('/storage/', '', $path);
     }
 }

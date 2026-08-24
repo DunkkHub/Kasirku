@@ -1,18 +1,16 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "rezadrian01/teisseire-pizza-pos",
+    "name": "rezadrian01/teisseire-pizza-digital-menu",
     "type": "project",
-    "description": "Restaurant point-of-sale and online ordering system for Teisseire Pizza, built with Laravel, React, and Inertia.",
+    "description": "Digital restaurant menu and simple admin CMS for Teisseire Pizza, built with Laravel, React, and Inertia.",
     "keywords": [
         "restaurant",
-        "point-of-sale",
-        "online-ordering",
-        "delivery",
+        "digital-menu",
+        "restaurant-menu",
+        "cms",
         "laravel",
         "react",
-        "inertia",
-        "midtrans",
-        "escpos"
+        "inertia"
     ],
     "license": "MIT",
     "require": {
@@ -20,8 +18,6 @@
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
-        "midtrans/midtrans-php": "^2.6",
-        "mike42/escpos-php": "^4.0",
         "tightenco/ziggy": "^2.4"
     },
     "require-dev": {

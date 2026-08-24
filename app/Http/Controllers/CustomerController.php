@@ -4,83 +4,68 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Product;
-use Illuminate\Http\Request;
+use App\Models\RestaurantSetting;
 use Inertia\Inertia;
 
 class CustomerController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $query = Product::with(['category', 'photos'])
-            ->where('is_available', true)
+        $settings = RestaurantSetting::current();
+
+        $categories = Category::query()
+            ->where('is_active', true)
+            ->withCount(['activeProducts as products_count'])
             ->orderBy('sort_order')
-            ->orderBy('name');
-
-        // Apply search filter
-        if ($request->has('search') && $request->search) {
-            $searchTerm = $request->search;
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('name', 'like', "%{$searchTerm}%")
-                    ->orWhereHas('category', function ($q2) use ($searchTerm) {
-                        $q2->where('name', 'like', "%{$searchTerm}%");
-                    });
-            });
-        }
-
-        // Apply category filter
-        if ($request->has('category') && $request->category && $request->category !== 'all') {
-            $query->where('category_id', $request->category);
-        }
-
-        // Paginate results
-        $perPage = 12; // Number of products per page
-        $products = $query->paginate($perPage);
-
-        $categories = Category::query()->orderBy('sort_order')->orderBy('name')->get();
-
-        $storeConfig = [
-            'currency' => config('pos.currency'),
-            'locale' => config('pos.locale'),
-            'delivery_fee' => (float) config('pos.delivery_fee'),
-            'tax_rate' => (float) config('pos.tax_rate'),
-            'midtrans_enabled' => config('pos.currency') === 'IDR'
-              && (int) config('pos.currency_precision') === 0
-              && filled(config('services.midtrans.server_key'))
-              && filled(config('services.midtrans.client_key')),
-        ];
-
-        // Return JSON for AJAX requests (infinite scroll) - hanya untuk request dengan page parameter.
-        // Exclude Inertia visits (X-Inertia header) since axios also sets X-Requested-With.
-        if (! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax()) && $request->has('page') && $request->page > 1) {
-            return response()->json([
-                'products' => $products->items(),
-                'pagination' => [
-                    'current_page' => $products->currentPage(),
-                    'last_page' => $products->lastPage(),
-                    'per_page' => $products->perPage(),
-                    'total' => $products->total(),
-                    'has_more_pages' => $products->hasMorePages(),
-                ],
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Category $category): array => [
+                'id' => $category->id,
+                'name' => $category->name,
+                'slug' => $category->slug,
+                'description' => $category->description,
+                'image' => $category->image,
+                'products_count' => $category->products_count,
             ]);
-        }
 
-        // Return Inertia page for initial load and redirects
+        $products = Product::query()
+            ->with(['category', 'photos'])
+            ->whereHas('category', fn ($query) => $query->where('is_active', true))
+            ->orderBy(
+                Category::query()
+                    ->select('sort_order')
+                    ->whereColumn('categories.id', 'products.category_id')
+                    ->limit(1)
+            )
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Product $product): array => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'slug' => $product->slug,
+                'category_id' => $product->category_id,
+                'price' => $product->price,
+                'description' => $product->description,
+                'ingredients' => $product->ingredients,
+                'is_available' => $product->is_available,
+                'category' => $product->category ? [
+                    'id' => $product->category->id,
+                    'name' => $product->category->name,
+                    'slug' => $product->category->slug,
+                ] : null,
+                'photos' => $product->photos
+                    ->map(fn ($photo): array => [
+                        'url' => $photo->url,
+                        'is_primary' => $photo->is_primary,
+                    ])
+                    ->values(),
+            ]);
+
         return Inertia::render('customer/index', [
-            'products' => $products->items(),
+            'settings' => $settings->publicPayload(),
+            'products' => $products,
             'categories' => $categories,
-            'currency' => $storeConfig['currency'],
-            'locale' => $storeConfig['locale'],
-            'delivery_fee' => $storeConfig['delivery_fee'],
-            'tax_rate' => $storeConfig['tax_rate'],
-            'midtrans_enabled' => $storeConfig['midtrans_enabled'],
-            'store_config' => $storeConfig,
-            'pagination' => [
-                'current_page' => $products->currentPage(),
-                'last_page' => $products->lastPage(),
-                'per_page' => $products->perPage(),
-                'total' => $products->total(),
-                'has_more_pages' => $products->hasMorePages(),
-            ],
         ]);
     }
 }

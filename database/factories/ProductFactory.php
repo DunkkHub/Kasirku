@@ -23,6 +23,7 @@ class ProductFactory extends Factory
             'category_id' => Category::factory(),
             'price' => fake()->randomFloat(2, 5, 100),
             'description' => fake()->sentence(),
+            'ingredients' => 'Emmental, Mozza',
             'is_available' => true,
             'sort_order' => 0,
         ];

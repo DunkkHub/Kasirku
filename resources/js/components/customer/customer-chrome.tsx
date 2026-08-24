@@ -1,27 +1,42 @@
+import { phoneHref } from '@/lib/customer';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Clock3, MapPin, Phone, Pizza } from 'lucide-react';
+import type { RestaurantSettings } from '@/types/models';
+import { Clock3, Instagram, MapPin, Phone, Pizza } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-interface CustomerHeaderProps {
-    backHref?: string;
-    context?: string;
-}
-
-export function CustomerBrand({ compact = false }: { compact?: boolean }) {
+export function CustomerBrand({ settings, compact = false }: { settings: RestaurantSettings; compact?: boolean }) {
     return (
-        <span className="inline-flex items-center gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full border border-[#ff7a30]/40 bg-[#ff6b22] text-[#170b05] shadow-[0_0_28px_rgba(255,107,34,0.2)] sm:size-11">
-                <Pizza className="size-5" aria-hidden="true" />
-            </span>
-            <span className={cn('leading-none', compact && 'hidden min-[380px]:block')}>
-                <span className="customer-display block text-lg tracking-[0.04em] text-[#fff6e8] sm:text-xl">Teisseire</span>
-                <span className="mt-1 block text-[0.62rem] font-bold tracking-[0.32em] text-[#ff7a30] uppercase">Pizza · Halal</span>
+        <span className="inline-flex min-w-0 items-center gap-3">
+            {settings.logo_path ? (
+                <img
+                    src={settings.logo_path}
+                    alt={`${settings.restaurant_name} logo`}
+                    className={cn('h-14 w-auto max-w-28 object-contain sm:h-16', compact && 'h-11 max-w-20 sm:h-12')}
+                    loading="eager"
+                    decoding="async"
+                />
+            ) : (
+                <span
+                    className={cn(
+                        'grid size-12 shrink-0 place-items-center rounded-2xl border border-white/12 bg-white/6 text-[#ff7a30]',
+                        compact && 'size-10',
+                    )}
+                    aria-hidden="true"
+                >
+                    <Pizza className="size-6" />
+                </span>
+            )}
+            <span className={cn('min-w-0', compact && 'hidden sm:block')}>
+                <span className="block truncate text-sm font-black tracking-[0.18em] text-[#fff6e8] uppercase">{settings.restaurant_name}</span>
+                {settings.show_halal_badge && <span className="mt-1 inline-flex text-[0.68rem] font-bold text-[#ff9c62]">Halal</span>}
             </span>
         </span>
     );
 }
 
-export function CustomerHeader({ backHref, context }: CustomerHeaderProps) {
+export function CustomerHeader({ settings }: { settings: RestaurantSettings }) {
+    const href = phoneHref(settings.phone);
+
     return (
         <header className="sticky top-0 z-40 border-b border-white/8 bg-[#090807]/92 backdrop-blur-xl">
             <a
@@ -31,45 +46,32 @@ export function CustomerHeader({ backHref, context }: CustomerHeaderProps) {
                 Aller au contenu
             </a>
             <div className="customer-container flex min-h-18 items-center justify-between gap-3 py-3">
-                <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-                    {backHref && (
-                        <a href={backHref} className="customer-icon-button" aria-label="Retour à la carte">
-                            <ArrowLeft className="size-5" aria-hidden="true" />
-                        </a>
-                    )}
-                    <a
-                        href="/"
-                        className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#ff7a30] focus-visible:ring-offset-4 focus-visible:ring-offset-[#090807]"
-                    >
-                        <CustomerBrand compact={Boolean(backHref)} />
+                <a
+                    href="/"
+                    className="min-w-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#ff7a30] focus-visible:ring-offset-4 focus-visible:ring-offset-[#090807]"
+                >
+                    <CustomerBrand settings={settings} compact />
+                </a>
+
+                <nav className="hidden items-center gap-7 text-sm font-semibold text-[#c9bfb1] lg:flex" aria-label="Navigation principale">
+                    <a className="customer-nav-link" href="#carte">
+                        La carte
                     </a>
-                    {context && <span className="hidden border-l border-white/12 pl-4 text-sm font-semibold text-[#c9bfb1] md:block">{context}</span>}
-                </div>
+                    <a className="customer-nav-link" href="#infos">
+                        Infos
+                    </a>
+                </nav>
 
-                {!backHref && (
-                    <nav className="hidden items-center gap-7 text-sm font-semibold text-[#c9bfb1] lg:flex" aria-label="Navigation principale">
-                        <a className="customer-nav-link" href="#carte">
-                            La carte
-                        </a>
-                        <a className="customer-nav-link" href="#formules">
-                            Les formules
-                        </a>
-                        <a className="customer-nav-link" href="#infos">
-                            Infos
-                        </a>
-                    </nav>
-                )}
-
-                <div className="flex items-center gap-2">
+                {href && (
                     <a
-                        href="tel:+33634614047"
+                        href={href}
                         className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold text-[#efe5d5] transition-colors hover:bg-white/6 focus-visible:ring-2 focus-visible:ring-[#ff7a30] focus-visible:outline-none sm:px-4"
-                        aria-label="Appeler Teisseire Pizza"
+                        aria-label={`Appeler ${settings.restaurant_name}`}
                     >
                         <Phone className="size-4 text-[#ff7a30]" aria-hidden="true" />
-                        <span className="hidden sm:inline">06 34 61 40 47</span>
+                        <span className="hidden sm:inline">{settings.phone}</span>
                     </a>
-                </div>
+                )}
             </div>
         </header>
     );
@@ -93,39 +95,64 @@ export function ProductImage({ src, alt, className, eager = false }: { src: stri
     );
 }
 
-export function InfoPill({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-    return (
-        <span className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full border border-white/12 bg-black/25 px-3 py-1.5 text-xs font-bold tracking-wide text-[#f4eadb] backdrop-blur-sm">
-            {icon}
-            {children}
-        </span>
-    );
-}
+export function CustomerFooter({ settings }: { settings: RestaurantSettings }) {
+    const href = phoneHref(settings.phone);
 
-export function CustomerFooter() {
     return (
         <footer id="infos" className="border-t border-white/8 bg-[#080706]">
             <div className="customer-container grid gap-8 py-10 md:grid-cols-[1.2fr_1fr_1fr] md:py-12">
                 <div>
-                    <CustomerBrand />
-                    <p className="mt-4 max-w-sm text-sm leading-6 text-[#a99f92]">
-                        Pizzas 33 cm préparées sur place, recettes généreuses et viande halal.
-                    </p>
+                    <CustomerBrand settings={settings} />
+                    {settings.description && <p className="mt-4 max-w-sm text-sm leading-6 text-[#a99f92]">{settings.description}</p>}
                 </div>
-                <FooterInfo icon={<MapPin className="size-5" aria-hidden="true" />} title="Nous trouver">
-                    <a href="https://maps.google.com/?q=75+rue+Leon+Jouhaux" className="hover:text-[#fff6e8]">
-                        75 rue Léon Jouhaux
-                    </a>
-                </FooterInfo>
-                <FooterInfo icon={<Clock3 className="size-5" aria-hidden="true" />} title="Horaires">
-                    Lundi au dimanche
-                    <br />
-                    18 h – 22 h 30
-                </FooterInfo>
+                {settings.address && (
+                    <FooterInfo icon={<MapPin className="size-5" aria-hidden="true" />} title="Adresse">
+                        {settings.google_maps_url ? (
+                            <a href={settings.google_maps_url} className="hover:text-[#fff6e8]" target="_blank" rel="noreferrer">
+                                {settings.address}
+                            </a>
+                        ) : (
+                            settings.address
+                        )}
+                    </FooterInfo>
+                )}
+                {settings.opening_hours && (
+                    <FooterInfo icon={<Clock3 className="size-5" aria-hidden="true" />} title="Horaires">
+                        {settings.opening_hours.split('\n').map((line) => (
+                            <span key={line} className="block">
+                                {line}
+                            </span>
+                        ))}
+                    </FooterInfo>
+                )}
             </div>
-            <div className="customer-container flex flex-col gap-2 border-t border-white/8 py-5 text-xs text-[#7f776d] sm:flex-row sm:items-center sm:justify-between">
-                <span>© {new Date().getFullYear()} Teisseire Pizza</span>
-                <span>Sur place · À emporter · Livraison</span>
+            <div className="customer-container flex flex-col gap-3 border-t border-white/8 py-5 text-xs text-[#7f776d] sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                    © {new Date().getFullYear()} {settings.restaurant_name}
+                </span>
+                <span className="flex flex-wrap gap-3">
+                    {href && (
+                        <a href={href} className="hover:text-[#fff6e8]">
+                            {settings.phone}
+                        </a>
+                    )}
+                    {settings.instagram_url && (
+                        <a
+                            href={settings.instagram_url}
+                            className="inline-flex items-center gap-1 hover:text-[#fff6e8]"
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            <Instagram className="size-3.5" aria-hidden="true" />
+                            Instagram
+                        </a>
+                    )}
+                    {settings.facebook_url && (
+                        <a href={settings.facebook_url} className="hover:text-[#fff6e8]" target="_blank" rel="noreferrer">
+                            Facebook
+                        </a>
+                    )}
+                </span>
             </div>
         </footer>
     );

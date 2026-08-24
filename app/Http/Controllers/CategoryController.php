@@ -2,89 +2,114 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Admin\SaveCategoryRequest;
 use App\Models\Category;
-use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class CategoryController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(): Response
     {
-        $categories = Category::withCount('products')->get();
+        $categories = Category::query()
+            ->withCount(['products as products_count'])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
 
         return Inertia::render('admin/categories/index', [
             'categories' => $categories,
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function create(): never
     {
         abort(404, 'Page introuvable.');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(SaveCategoryRequest $request): RedirectResponse
     {
-        $validated = $request->validate(['name' => 'required|string|max:120|unique:categories,name']);
+        $validated = $request->validated();
+        $image = $request->file('image')?->store('categories', 'public');
 
-        Category::create(['name' => trim($validated['name'])]);
+        Category::create([
+            'name' => trim($validated['name']),
+            'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
+            'image' => $image ? Storage::url($image) : null,
+            'is_active' => (bool) ($validated['is_active'] ?? true),
+            'sort_order' => (int) ($validated['sort_order'] ?? 0),
+        ]);
 
         return redirect()->route('categories.index')->with('success', 'Catégorie créée.');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show(Category $category): never
     {
         abort(404, 'Page introuvable.');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function edit(Category $category): never
     {
         abort(404, 'Page introuvable.');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function update(SaveCategoryRequest $request, Category $category): RedirectResponse
     {
-        $validated = $request->validate(['name' => 'required|string|max:120|unique:categories,name,'.$id]);
+        $validated = $request->validated();
+        $oldImage = null;
 
-        $category = Category::findOrFail($id);
-        $category->update(['name' => trim($validated['name'])]);
+        if ($request->boolean('remove_image')) {
+            $oldImage = $this->storagePathFromUrl((string) $category->image);
+            $category->image = null;
+        }
+
+        if ($request->hasFile('image')) {
+            $oldImage = $this->storagePathFromUrl((string) $category->image);
+            $category->image = Storage::url($request->file('image')->store('categories', 'public'));
+        }
+
+        $category->fill([
+            'name' => trim($validated['name']),
+            'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
+            'is_active' => (bool) ($validated['is_active'] ?? $category->is_active),
+            'sort_order' => (int) ($validated['sort_order'] ?? $category->sort_order),
+        ])->save();
+
+        if ($oldImage) {
+            Storage::disk('public')->delete($oldImage);
+        }
 
         return redirect()->route('categories.index')->with('success', 'Catégorie mise à jour.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function destroy(Category $category): RedirectResponse
     {
-        $category = Category::findOrFail($id);
-
-        // Les produits archivés doivent également préserver leur catégorie.
-        if ($category->products()->withTrashed()->exists()) {
+        if ($category->products()->exists()) {
             return back()->withErrors([
-                'error' => 'Cette catégorie contient des produits actifs ou archivés et ne peut pas être supprimée.',
+                'error' => 'Cette catégorie contient des plats actifs ou archivés. Déplacez-les avant de la supprimer.',
             ]);
         }
 
+        $image = $this->storagePathFromUrl((string) $category->image);
         $category->delete();
 
+        if ($image) {
+            Storage::disk('public')->delete($image);
+        }
+
         return redirect()->route('categories.index')->with('success', 'Catégorie supprimée.');
+    }
+
+    private function storagePathFromUrl(string $url): ?string
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+
+        if (! is_string($path) || ! str_starts_with($path, '/storage/categories/')) {
+            return null;
+        }
+
+        return str_replace('/storage/', '', $path);
     }
 }

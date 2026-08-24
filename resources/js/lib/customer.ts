@@ -1,23 +1,12 @@
-import type { Category, Product, ProductPhoto } from '@/types/models';
+import type { Category, Product, ProductPhoto, RestaurantSettings } from '@/types/models';
 
-export type FulfillmentType = 'dine_in' | 'pickup' | 'delivery';
-
-export interface StorefrontConfig {
-    currency?: string;
-    locale?: string;
-    delivery_fee?: number;
-    tax_rate?: number;
-    midtrans_enabled?: boolean;
-    online_payment_enabled?: boolean;
-}
-
-export function formatMoney(amount: number, currency = 'EUR', locale = 'fr-FR') {
-    return new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency,
+export function formatMenuPrice(amount: number, settings: Pick<RestaurantSettings, 'currency_symbol' | 'currency_symbol_position'>) {
+    const formatted = new Intl.NumberFormat('fr-FR', {
         minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
         maximumFractionDigits: 2,
     }).format(amount);
+
+    return settings.currency_symbol_position === 'before' ? `${settings.currency_symbol}${formatted}` : `${formatted} ${settings.currency_symbol}`;
 }
 
 export function getPrimaryPhoto(photos: Array<Pick<ProductPhoto, 'url'> & Partial<Pick<ProductPhoto, 'is_primary'>>> = []) {
@@ -43,10 +32,7 @@ export function getProductImage(
     return null;
 }
 
-export function fulfillmentLabel(type: FulfillmentType) {
-    return {
-        dine_in: 'Sur place',
-        pickup: 'À emporter',
-        delivery: 'Livraison',
-    }[type];
+export function phoneHref(phone?: string | null) {
+    const digits = (phone ?? '').replace(/[^\d+]/g, '');
+    return digits ? `tel:${digits}` : undefined;
 }

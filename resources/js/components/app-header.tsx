@@ -10,30 +10,30 @@ import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem, type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { ChartBarStacked, LayoutDashboard, Menu, ShoppingBag, UtensilsCrossed } from 'lucide-react';
+import { ChartBarStacked, LayoutDashboard, Menu, Settings, UtensilsCrossed } from 'lucide-react';
 import AppLogo from './app-logo';
 import AppLogoIcon from './app-logo-icon';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Vue d’ensemble',
-        href: '/admin/dashboard',
+        title: 'Tableau de bord',
+        href: '/admin',
         icon: LayoutDashboard,
     },
     {
-        title: 'Commandes',
-        href: '/admin/orders',
-        icon: ShoppingBag,
-    },
-    {
-        title: 'Carte & produits',
-        href: '/admin/products',
+        title: 'Menu',
+        href: '/admin/menu',
         icon: UtensilsCrossed,
     },
     {
         title: 'Catégories',
         href: '/admin/categories',
         icon: ChartBarStacked,
+    },
+    {
+        title: 'Paramètres restaurant',
+        href: '/admin/settings',
+        icon: Settings,
     },
 ];
 
@@ -47,6 +47,12 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
     const page = usePage<SharedData>();
     const { auth } = page.props;
     const getInitials = useInitials();
+    const user = auth.user;
+
+    if (!user) {
+        return null;
+    }
+
     return (
         <>
             <div className="border-b border-[#ddcfbd] bg-[#fffaf2]">
@@ -65,7 +71,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                             >
                                 <SheetTitle className="sr-only">Navigation de l’administration</SheetTitle>
                                 <SheetHeader className="flex justify-start text-left">
-                                    <AppLogoIcon className="size-9" aria-hidden="true" />
+                                    <AppLogoIcon className="h-12 w-16" aria-hidden="true" />
                                 </SheetHeader>
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">
@@ -88,7 +94,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                     </div>
 
                     <Link
-                        href="/admin/dashboard"
+                        href="/admin"
                         prefetch
                         className="flex items-center space-x-2 rounded-xl focus-visible:ring-2 focus-visible:ring-[#d8562a] focus-visible:outline-none"
                     >
@@ -130,15 +136,15 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                     aria-label="Ouvrir le menu du compte"
                                 >
                                     <Avatar className="size-8 overflow-hidden rounded-full">
-                                        <AvatarImage src={auth.user.avatar} alt={auth.user.name} />
+                                        <AvatarImage src={user.avatar} alt={user.name} />
                                         <AvatarFallback className="rounded-lg bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white">
-                                            {getInitials(auth.user.name)}
+                                            {getInitials(user.name)}
                                         </AvatarFallback>
                                     </Avatar>
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent className="w-56" align="end">
-                                <UserMenuContent user={auth.user} />
+                                <UserMenuContent user={user} />
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>

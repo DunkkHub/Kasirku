@@ -1,27 +1,27 @@
-# Teisseire Pizza POS design system
+# Teisseire Pizza Digital Menu design system
 
-This file records the visual system implemented in the customer ordering experience, authentication flows, and administration area. Runtime tokens live in `resources/css/app.css`; this document is the human-readable source of truth.
+This file records the visual system implemented in the public digital menu, authentication flows, and administration CMS. Runtime tokens live in `resources/css/app.css`; this document is the human-readable source of truth.
 
 ## Brand direction
 
-The supplied Teisseire Pizza flyer established the core cues: a black field, warm pizza-orange highlights, cream type, strong menu hierarchy, and generous food imagery. The web experience translates those cues into a modern ordering system without reproducing the flyer layout literally.
+The supplied Teisseire Pizza flyer established the core cues: a black field, warm pizza-orange highlights, cream type, strong menu hierarchy, and generous food imagery. The web experience translates those cues into a modern QR-code digital menu without reproducing the flyer layout literally.
 
 The customer experience is dark, warm, tactile, and high-contrast. The administration area uses the same ember accent with a calmer cream workspace and a near-black navigation rail.
 
 ## Color tokens
 
-| Role | Customer | Administration |
-| --- | --- | --- |
-| Canvas | `#080706` | `#f7f0e6` |
-| Raised surface | `#15110e` | `#fffaf2` |
-| Strong surface | `#21160f` | `#23170f` |
-| Primary text | `#fff6e8` | `#1c130e` |
-| Muted text | `#a99d8e` | `#746659` |
-| Primary action | `#ff671d` | `#dc5127` |
-| Action hover | `#ff8341` | `#bd3f1f` |
-| Border | `rgba(255,246,232,.16)` | `#dfcfbc` |
-| Destructive | `#d7473f` | `#991b1b` |
-| Success | `#79a88a` | `#47795d` |
+| Role           | Customer                | Administration |
+| -------------- | ----------------------- | -------------- |
+| Canvas         | `#080706`               | `#f7f0e6`      |
+| Raised surface | `#15110e`               | `#fffaf2`      |
+| Strong surface | `#21160f`               | `#23170f`      |
+| Primary text   | `#fff6e8`               | `#1c130e`      |
+| Muted text     | `#a99d8e`               | `#746659`      |
+| Primary action | `#ff671d`               | `#dc5127`      |
+| Action hover   | `#ff8341`               | `#bd3f1f`      |
+| Border         | `rgba(255,246,232,.16)` | `#dfcfbc`      |
+| Destructive    | `#d7473f`               | `#991b1b`      |
+| Success        | `#79a88a`               | `#47795d`      |
 
 Orange is reserved for actions, active navigation, progress, prices, and short emphasis. It is not used for body text on cream backgrounds.
 
@@ -42,15 +42,16 @@ Orange is reserved for actions, active navigation, progress, prices, and short e
 - Secondary buttons: transparent or dark surface with visible border and focus ring.
 - Form controls: 48 px default height, persistent labels, clear inline errors, visible `:focus-visible` outline.
 - Product imagery uses a fixed crop and descriptive category fallback; product text and controls never overlay the food image.
-- Lucide supplies interface icons. The pizza mark and favicon are project-native SVG artwork.
+- Lucide supplies interface icons. The visible brand mark uses the supplied Teisseire Pizza Halal raster logo, with a project-native favicon retained for browser chrome.
 
 ## Customer journey
 
-1. Browse the digital menu, search, or filter one of eight categories.
-2. Review product imagery, descriptions, prices, and shared formules.
-3. Use the address, hours, and phone contact to reach the restaurant outside the website.
+1. Scan the QR code and land directly on `/`.
+2. Browse the digital menu, search, or jump between sticky categories.
+3. Review imagery, ingredients, descriptions, prices, and unavailable states.
+4. Use the address, hours, and phone contact to reach the restaurant outside the website.
 
-The public customer website is intentionally read-only: it must not expose cart, checkout, delivery request, or online order controls. Dine-in, pickup, and delivery workflows remain available in the protected administration area.
+The public website is intentionally read-only: it must not expose cart, checkout, delivery request, pickup request, payment, receipt, cashier, or online order controls. The protected administration area is a small CMS for Menu, Categories, and Restaurant Settings only.
 
 ## Motion
 
@@ -64,6 +65,7 @@ The public customer website is intentionally read-only: it must not expose cart,
 All current menu imagery is local WebP artwork created for this project:
 
 - `teisseire-pizza-hero.webp`
+- `teisseire-pizza-halal-logo.png`
 - `menu-pizza-tomate.webp`
 - `menu-pizza-creme.webp`
 - `menu-panini-tiramisu.webp`
@@ -83,9 +85,9 @@ Do not introduce remote placeholder or stock-image dependencies. Uploaded produc
 
 ## Release checklist
 
-- Customer, login, dashboard, orders, products, and categories use Teisseire vocabulary and currency formatting.
-- No cart, checkout, delivery-request, or online-order controls appear on the customer menu.
+- Customer, login, dashboard, menu, categories, and restaurant settings use Teisseire vocabulary and currency formatting.
+- No cart, checkout, delivery-request, pickup-request, payment, receipt, cashier, or online-order controls appear on the customer menu or admin navigation.
 - No disabled-registration link appears on login.
 - Product photos have a local fallback and useful alternative text.
-- Loading, empty, validation, unavailable, and terminal order states remain legible.
+- Loading, empty, validation, unavailable, and disabled-category states remain legible.
 - Reduced-motion, keyboard focus, mobile layout, TypeScript, ESLint, Prettier, and the production build pass before release.

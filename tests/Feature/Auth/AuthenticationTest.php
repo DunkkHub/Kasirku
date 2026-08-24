@@ -3,27 +3,28 @@
 use App\Models\User;
 
 test('login screen can be rendered', function () {
-    $response = $this->get('/login');
+    $this->get('/login')->assertRedirect('/admin/login');
+
+    $response = $this->get('/admin/login');
 
     $response->assertStatus(200);
 });
 
-test('users can authenticate using the login screen', function () {
+test('non admin users cannot authenticate through the admin login screen', function () {
     $user = User::factory()->withTestPassword()->create();
 
-    $response = $this->post('/login', [
+    $this->post('/admin/login', [
         'email' => $user->email,
         'password' => 'password',
     ]);
 
-    $this->assertAuthenticated();
-    $response->assertRedirect(route('home', absolute: false));
+    $this->assertGuest();
 });
 
 test('users can not authenticate with invalid password', function () {
     $user = User::factory()->withTestPassword()->create();
 
-    $this->post('/login', [
+    $this->post('/admin/login', [
         'email' => $user->email,
         'password' => 'wrong-password',
     ]);
@@ -34,7 +35,7 @@ test('users can not authenticate with invalid password', function () {
 test('users can logout', function () {
     $user = User::factory()->create();
 
-    $response = $this->actingAs($user)->post('/logout');
+    $response = $this->actingAs($user)->post(route('logout'));
 
     $this->assertGuest();
     $response->assertRedirect('/');
@@ -43,7 +44,7 @@ test('users can logout', function () {
 test('administrators are redirected to the dashboard after login', function () {
     $user = User::factory()->admin()->withTestPassword()->create();
 
-    $response = $this->post('/login', ['email' => $user->email, 'password' => 'password']);
+    $response = $this->post('/admin/login', ['email' => $user->email, 'password' => 'password']);
 
     $response->assertRedirect(route('admin.dashboard', absolute: false));
 });

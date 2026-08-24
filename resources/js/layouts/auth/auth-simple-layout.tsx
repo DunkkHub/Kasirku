@@ -27,8 +27,8 @@ export default function AuthSimpleLayout({ children, title, description }: Props
                         aria-label="Retour à la carte Teisseire Pizza"
                         className="group inline-flex min-h-12 w-fit items-center gap-3 rounded-full pr-3 outline-none focus-visible:ring-2 focus-visible:ring-[var(--customer-ember-light)] focus-visible:ring-offset-4 focus-visible:ring-offset-[#0a0908]"
                     >
-                        <span className="grid size-12 place-items-center rounded-full bg-[var(--customer-ember)] shadow-[0_10px_30px_rgba(255,80,14,0.2)] transition-colors duration-200 group-hover:bg-[#ff8341]">
-                            <AppLogoIcon aria-hidden="true" className="size-10" />
+                        <span className="grid h-14 w-20 place-items-center rounded-2xl border border-white/15 bg-black px-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition-colors duration-200 group-hover:border-[var(--customer-ember-light)]/70">
+                            <AppLogoIcon aria-hidden="true" className="h-12 w-full" />
                         </span>
                         <span className="leading-none">
                             <span className="customer-display block text-xl tracking-tight text-[var(--customer-cream)]">Teisseire</span>

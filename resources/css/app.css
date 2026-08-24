@@ -159,6 +159,91 @@
     }
 }
 
+/* Admin CMS light surfaces ----------------------------------------------- */
+
+.admin-cms-surface {
+    color: #241b16;
+    color-scheme: light;
+}
+
+.admin-cms-surface [data-slot='card'],
+.admin-cms-surface [data-slot='dialog-content'] {
+    color: #241b16;
+}
+
+.admin-cms-surface [data-slot='label'] {
+    color: #3a2a20;
+}
+
+.admin-cms-surface [data-slot='input'],
+.admin-cms-surface textarea,
+.admin-cms-surface [data-slot='select-trigger'] {
+    border-color: #bfae9a;
+    background-color: #fffaf2;
+    color: #241b16;
+    caret-color: #d8562a;
+}
+
+.admin-cms-surface [data-slot='input']::placeholder,
+.admin-cms-surface textarea::placeholder,
+.admin-cms-surface [data-slot='select-trigger'][data-placeholder] {
+    color: #8a7869;
+}
+
+.admin-cms-surface [data-slot='input']:focus-visible,
+.admin-cms-surface textarea:focus-visible,
+.admin-cms-surface [data-slot='select-trigger']:focus-visible {
+    border-color: #d8562a;
+    --tw-ring-color: rgb(216 86 42 / 0.22);
+}
+
+.admin-cms-surface [data-slot='button'].border {
+    border-color: #bfae9a !important;
+    background-color: #fffaf2 !important;
+    color: #2f241d !important;
+}
+
+.admin-cms-surface [data-slot='button'].border:hover:not(:disabled) {
+    background-color: #f2e3d2 !important;
+    color: #2f241d !important;
+}
+
+.admin-cms-surface [data-slot='button']:disabled {
+    border-color: #d7c7b2 !important;
+    background-color: #eadfce !important;
+    color: #77695d !important;
+    opacity: 1;
+}
+
+.admin-cms-surface [data-slot='badge']:not([class*='text-[']) {
+    color: #241b16;
+}
+
+.admin-cms-surface [data-slot='badge'].bg-secondary {
+    background-color: #241b16 !important;
+    color: #fffaf2 !important;
+}
+
+.admin-cms-surface [data-slot='badge'].border:not(.border-transparent) {
+    border-color: #bfae9a !important;
+    background-color: #fffaf2 !important;
+    color: #4a3326 !important;
+}
+
+.admin-cms-surface [data-slot='dialog-title'] {
+    color: #241b16;
+}
+
+.admin-cms-surface [data-slot='dialog-description'] {
+    color: #75675b;
+}
+
+.admin-select-content {
+    border-color: #bfae9a !important;
+    background-color: #fffaf2 !important;
+    color: #241b16 !important;
+}
+
 /* Customer storefront ----------------------------------------------------- */
 
 .customer-theme {
@@ -188,6 +273,13 @@
 .customer-display {
     font-family: 'Playfair Display', Georgia, serif;
     font-weight: 700;
+}
+
+.customer-script-heading {
+    font-family: 'Segoe Script', 'Lucida Handwriting', 'Brush Script MT', cursive;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-shadow: 0 3px 18px rgba(0, 0, 0, 0.72);
 }
 
 .customer-nav-link {
@@ -395,7 +487,8 @@
     color: var(--customer-cream);
 }
 
-.customer-chip[aria-pressed='true'] {
+.customer-chip[aria-pressed='true'],
+.customer-chip[aria-current='true'] {
     border-color: var(--customer-ember);
     background: var(--customer-ember);
     color: #170b05;

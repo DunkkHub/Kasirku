@@ -39,8 +39,10 @@
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 
         @routes
-        @viteReactRefresh
-        @vite(['resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
+        @if (! app()->environment('testing'))
+            @viteReactRefresh
+            @vite(['resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
+        @endif
         @inertiaHead
     </head>
     <body class="font-sans antialiased">
