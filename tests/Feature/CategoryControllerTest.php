@@ -45,7 +45,12 @@ test('admin can create a category with cms fields and image', function () {
         'sort_order' => 5,
         'is_active' => true,
     ]);
-    expect(Category::where('name', 'Boissons')->firstOrFail()->image)->toStartWith('/storage/categories/');
+    $image = Category::where('name', 'Boissons')->firstOrFail()->image;
+
+    expect($image)->toStartWith('/storage/categories/')
+        ->and($image)->toEndWith(function_exists('imagewebp') ? '.webp' : '.jpg');
+
+    Storage::disk('public')->assertExists(str_replace('/storage/', '', $image));
 });
 
 test('category validation rejects unsafe image uploads and invalid sort order', function () {

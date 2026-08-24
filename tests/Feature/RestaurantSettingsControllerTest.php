@@ -50,7 +50,10 @@ test('admin can update restaurant settings and upload a logo', function () {
     expect($settings->restaurant_name)->toBe('Teisseire Pizza Grenoble')
         ->and($settings->currency_symbol_position)->toBe('after')
         ->and($settings->show_halal_badge)->toBeTrue()
-        ->and($settings->logo_path)->toStartWith('/storage/restaurant/');
+        ->and($settings->logo_path)->toStartWith('/storage/restaurant/')
+        ->and($settings->logo_path)->toEndWith(function_exists('imagewebp') ? '.webp' : '.jpg');
+
+    Storage::disk('public')->assertExists(str_replace('/storage/', '', $settings->logo_path));
 });
 
 test('restaurant settings reject unsafe urls and unsafe logo uploads', function () {

@@ -5,6 +5,13 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#0a0908">
         <meta name="color-scheme" content="light dark">
+        <meta name="description" content="Menu digital de Teisseire Pizza : pizzas, formules, paninis, boissons et desserts.">
+        @php($component = (string) ($page['component'] ?? ''))
+        @if (str_starts_with($component, 'admin/') || str_starts_with($component, 'auth/'))
+            <meta name="robots" content="noindex, nofollow">
+        @else
+            <link rel="canonical" href="{{ url()->current() }}">
+        @endif
 
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>

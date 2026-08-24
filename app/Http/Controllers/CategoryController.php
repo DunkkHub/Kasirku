@@ -4,13 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Admin\SaveCategoryRequest;
 use App\Models\Category;
+use App\Services\MenuImageStorage;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class CategoryController extends Controller
 {
+    public function __construct(private readonly MenuImageStorage $images) {}
+
     public function index(): Response
     {
         $categories = Category::query()
@@ -24,58 +29,69 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function create(): never
-    {
-        abort(404, 'Page introuvable.');
-    }
-
     public function store(SaveCategoryRequest $request): RedirectResponse
     {
         $validated = $request->validated();
-        $image = $request->file('image')?->store('categories', 'public');
+        $storedImage = null;
 
-        Category::create([
-            'name' => trim($validated['name']),
-            'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
-            'image' => $image ? Storage::url($image) : null,
-            'is_active' => (bool) ($validated['is_active'] ?? true),
-            'sort_order' => (int) ($validated['sort_order'] ?? 0),
-        ]);
+        try {
+            DB::transaction(function () use ($request, $validated, &$storedImage): void {
+                if ($request->hasFile('image')) {
+                    $storedImage = $this->images->store($request->file('image'), 'categories');
+                }
+
+                Category::create([
+                    'name' => trim($validated['name']),
+                    'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
+                    'image' => $storedImage ? Storage::url($storedImage) : null,
+                    'is_active' => (bool) ($validated['is_active'] ?? true),
+                    'sort_order' => (int) ($validated['sort_order'] ?? 0),
+                ]);
+            }, 3);
+        } catch (Throwable $exception) {
+            if ($storedImage) {
+                Storage::disk('public')->delete($storedImage);
+            }
+
+            throw $exception;
+        }
 
         return redirect()->route('categories.index')->with('success', 'Catégorie créée.');
-    }
-
-    public function show(Category $category): never
-    {
-        abort(404, 'Page introuvable.');
-    }
-
-    public function edit(Category $category): never
-    {
-        abort(404, 'Page introuvable.');
     }
 
     public function update(SaveCategoryRequest $request, Category $category): RedirectResponse
     {
         $validated = $request->validated();
         $oldImage = null;
+        $storedImage = null;
 
-        if ($request->boolean('remove_image')) {
-            $oldImage = $this->storagePathFromUrl((string) $category->image);
-            $category->image = null;
+        try {
+            DB::transaction(function () use ($request, $validated, $category, &$oldImage, &$storedImage): void {
+                if ($request->boolean('remove_image')) {
+                    $oldImage = $this->storagePathFromUrl((string) $category->image);
+                    $category->image = null;
+                }
+
+                if ($request->hasFile('image')) {
+                    $oldImage = $this->storagePathFromUrl((string) $category->image);
+                    $storedImage = $this->images->store($request->file('image'), 'categories');
+                    $category->image = Storage::url($storedImage);
+                }
+
+                $category->fill([
+                    'name' => trim($validated['name']),
+                    'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
+                    'is_active' => (bool) ($validated['is_active'] ?? $category->is_active),
+                    'sort_order' => (int) ($validated['sort_order'] ?? $category->sort_order),
+                ])->save();
+            }, 3);
+        } catch (Throwable $exception) {
+            if ($storedImage) {
+                Storage::disk('public')->delete($storedImage);
+            }
+
+            throw $exception;
         }
-
-        if ($request->hasFile('image')) {
-            $oldImage = $this->storagePathFromUrl((string) $category->image);
-            $category->image = Storage::url($request->file('image')->store('categories', 'public'));
-        }
-
-        $category->fill([
-            'name' => trim($validated['name']),
-            'description' => filled($validated['description'] ?? null) ? trim($validated['description']) : null,
-            'is_active' => (bool) ($validated['is_active'] ?? $category->is_active),
-            'sort_order' => (int) ($validated['sort_order'] ?? $category->sort_order),
-        ])->save();
 
         if ($oldImage) {
             Storage::disk('public')->delete($oldImage);
@@ -110,6 +126,12 @@ class CategoryController extends Controller
             return null;
         }
 
-        return str_replace('/storage/', '', $path);
+        $relative = str_replace('/storage/', '', $path);
+
+        if (! str_starts_with($relative, 'categories/') || str_contains($relative, '..') || str_contains($relative, '\\')) {
+            return null;
+        }
+
+        return $relative;
     }
 }

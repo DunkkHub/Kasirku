@@ -5,6 +5,8 @@
 /public/hot
 /public/storage
 /public/images/teisseire-pizza-hero.png
+/playwright-report
+/test-results
 /storage/*.key
 /storage/pail
 /vendor

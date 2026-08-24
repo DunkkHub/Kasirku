@@ -82,6 +82,10 @@ test('admin can create a menu item with ingredients order availability and photo
     $product = Product::where('name', 'Pizza test')->firstOrFail();
     expect($product->photos)->toHaveCount(1);
     expect($product->photos->first()->is_primary)->toBeTrue();
+    expect($product->photos->first()->url)->toStartWith('/storage/products/')
+        ->and($product->photos->first()->url)->toEndWith(function_exists('imagewebp') ? '.webp' : '.jpg');
+
+    Storage::disk('public')->assertExists(str_replace('/storage/', '', $product->photos->first()->url));
 });
 
 test('product validation rejects invalid category price and unsafe uploads', function () {
@@ -138,13 +142,17 @@ test('admin can remove and replace a product photo on update', function () {
 
     $response->assertRedirect(route('products.index'));
     $this->assertDatabaseMissing('product_photos', ['id' => $photo->id]);
+    Storage::disk('public')->assertMissing('products/existing.jpg');
     $this->assertDatabaseHas('products', [
         'id' => $product->id,
         'ingredients' => 'Emmental, Mozza, Champignons',
         'description' => 'Mise à jour',
         'sort_order' => 3,
     ]);
-    expect($product->fresh()->photos)->toHaveCount(1);
+    $replacement = $product->fresh()->photos->firstOrFail();
+    expect($product->fresh()->photos)->toHaveCount(1)
+        ->and($replacement->url)->toStartWith('/storage/products/')
+        ->and($replacement->url)->toEndWith(function_exists('imagewebp') ? '.webp' : '.jpg');
 });
 
 test('admin can toggle product availability', function () {

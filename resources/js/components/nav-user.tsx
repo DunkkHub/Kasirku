@@ -24,6 +24,7 @@ export function NavUser() {
                     <DropdownMenuTrigger asChild>
                         <SidebarMenuButton
                             size="lg"
+                            aria-label="Ouvrir le menu du compte"
                             className="group min-h-12 rounded-xl text-[#eadfce] hover:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-[#f09363] data-[state=open]:bg-[#35261d]"
                         >
                             <UserInfo user={user} />

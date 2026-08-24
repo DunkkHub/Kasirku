@@ -12,7 +12,6 @@ test('a verified non-admin account cannot enter the administration area', functi
 
     $this->actingAs($user)->get('/admin')->assertForbidden();
     $this->actingAs($user)->get('/admin/menu')->assertForbidden();
-    $this->actingAs($user)->get("/admin/menu/{$product->id}/edit")->assertForbidden();
     $this->actingAs($user)->post('/admin/menu', [])->assertForbidden();
     $this->actingAs($user)->patch("/admin/menu/{$product->id}/availability", ['is_available' => false])->assertForbidden();
     $this->actingAs($user)->patch("/admin/menu/{$product->id}", [])->assertForbidden();
@@ -29,7 +28,6 @@ test('anonymous visitors are redirected to the dedicated admin login for admin u
 
     $this->get('/admin')->assertRedirect('/admin/login');
     $this->get('/admin/menu')->assertRedirect('/admin/login');
-    $this->get("/admin/menu/{$product->id}/edit")->assertRedirect('/admin/login');
     $this->get('/admin/categories')->assertRedirect('/admin/login');
     $this->get('/admin/settings')->assertRedirect('/admin/login');
     $this->post('/admin/menu', [])->assertRedirect('/admin/login');
@@ -65,10 +63,18 @@ test('public checkout and order urls do not expose ordering endpoints', function
 
 test('obsolete admin aliases are not exposed', function () {
     $this->actingAs(User::factory()->admin()->create());
+    $category = Category::factory()->create();
+    $product = Product::factory()->create(['category_id' => $category->id]);
 
     $this->get('/admin/dashboard')->assertNotFound();
     $this->get('/admin/products')->assertNotFound();
     $this->get('/admin/restaurant-settings')->assertNotFound();
+    $this->get('/admin/menu/create')->assertNotFound();
+    $this->get("/admin/menu/{$product->id}")->assertMethodNotAllowed();
+    $this->get("/admin/menu/{$product->id}/edit")->assertNotFound();
+    $this->get('/admin/categories/create')->assertNotFound();
+    $this->get("/admin/categories/{$category->id}")->assertMethodNotAllowed();
+    $this->get("/admin/categories/{$category->id}/edit")->assertNotFound();
 });
 
 test('generic auth urls do not expose old application auth screens', function () {

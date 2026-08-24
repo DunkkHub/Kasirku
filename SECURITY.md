@@ -28,7 +28,7 @@ Never include live credentials, session cookies, admin account details, producti
 - `/admin/*` requires an authenticated, verified user that passes the administrator authorization gate.
 - Public registration is not exposed.
 - Menu, category, image, and restaurant-settings mutations require admin access and Laravel CSRF protection.
-- Uploaded images are type-, size-, and dimension-limited and stored through Laravel’s public storage disk.
+- Uploaded images are type-, size-, and dimension-limited, decoded server-side, stripped of metadata through re-encoding, resized if needed, renamed with generated filenames, and stored through Laravel’s public storage disk.
 - Baseline response headers restrict framing, MIME sniffing, referrers, browser capabilities, and object embedding.
 
 ## Deployment security checklist
@@ -42,6 +42,7 @@ Never include live credentials, session cookies, admin account details, producti
 - Disable script execution in uploaded storage directories.
 - Back up the database and uploaded images, encrypt backups, and test restoration.
 - Run tests, lint, type checks, production build, and dependency audits before release.
+- Review [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) before production release, especially HTTPS, Nginx `public/` document root, storage persistence, and backup/rollback steps.
 
 ## Dependency handling
 

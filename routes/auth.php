@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\AdminLoginRedirectController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -10,7 +11,7 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
-    Route::get('login', fn () => redirect()->route('login'));
+    Route::get('login', AdminLoginRedirectController::class);
 
     Route::get('admin/login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
@@ -22,12 +23,14 @@ Route::middleware('guest')->group(function () {
         ->name('password.request');
 
     Route::post('admin/forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->middleware('throttle:5,1')
         ->name('password.email');
 
     Route::get('admin/reset-password/{token}', [NewPasswordController::class, 'create'])
         ->name('password.reset');
 
     Route::post('admin/reset-password', [NewPasswordController::class, 'store'])
+        ->middleware('throttle:5,1')
         ->name('password.store');
 });
 

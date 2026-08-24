@@ -350,7 +350,11 @@ function ProductAdminCard({
     const image = getProductImage(product);
 
     return (
-        <Card className="overflow-hidden rounded-2xl border-[#ddcfbd] bg-[#fffaf2] shadow-[0_10px_28px_rgba(64,39,23,0.05)]">
+        <Card
+            role="article"
+            aria-label={`Plat ${product.name}`}
+            className="overflow-hidden rounded-2xl border-[#ddcfbd] bg-[#fffaf2] shadow-[0_10px_28px_rgba(64,39,23,0.05)]"
+        >
             <CardContent className="grid gap-4 p-4 sm:grid-cols-[8.5rem_minmax(0,1fr)]">
                 <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[#eadfce] sm:aspect-square">
                     {image ? (

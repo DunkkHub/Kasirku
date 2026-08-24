@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\ToggleProductAvailabilityRequest;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductPhotos;
+use App\Services\MenuImageStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,8 @@ use Throwable;
 
 class ProductController extends Controller
 {
+    public function __construct(private readonly MenuImageStorage $images) {}
+
     public function index(Request $request): Response|JsonResponse
     {
         $filters = $request->validate([
@@ -80,11 +83,6 @@ class ProductController extends Controller
         return Inertia::render('admin/products/index', $props);
     }
 
-    public function create(): never
-    {
-        abort(404, 'Page introuvable.');
-    }
-
     public function store(SaveProductRequest $request): RedirectResponse
     {
         $validated = $request->validated();
@@ -103,7 +101,7 @@ class ProductController extends Controller
                 ]);
 
                 foreach ($request->file('photos', []) as $index => $photo) {
-                    $storedPaths[] = $photo->store('products', 'public');
+                    $storedPaths[] = $this->images->store($photo, 'products', "photos.{$index}");
                     ProductPhotos::create([
                         'product_id' => $product->id,
                         'url' => Storage::url($storedPaths[array_key_last($storedPaths)]),
@@ -117,16 +115,6 @@ class ProductController extends Controller
         }
 
         return redirect()->route('products.index')->with('success', 'Plat ajouté à la carte.');
-    }
-
-    public function show(Product $product): never
-    {
-        abort(404, 'Page introuvable.');
-    }
-
-    public function edit(Product $product): never
-    {
-        abort(404, 'Page introuvable.');
     }
 
     public function update(SaveProductRequest $request, Product $product): RedirectResponse
@@ -163,8 +151,8 @@ class ProductController extends Controller
                 }
 
                 $hasPrimary = $product->photos()->where('is_primary', true)->exists();
-                foreach ($request->file('photos', []) as $photo) {
-                    $storedPaths[] = $photo->store('products', 'public');
+                foreach ($request->file('photos', []) as $index => $photo) {
+                    $storedPaths[] = $this->images->store($photo, 'products', "photos.{$index}");
                     ProductPhotos::create([
                         'product_id' => $product->id,
                         'url' => Storage::url($storedPaths[array_key_last($storedPaths)]),
@@ -213,6 +201,12 @@ class ProductController extends Controller
             return null;
         }
 
-        return str_replace('/storage/', '', $path);
+        $relative = str_replace('/storage/', '', $path);
+
+        if (! str_starts_with($relative, $directory.'/') || str_contains($relative, '..') || str_contains($relative, '\\')) {
+            return null;
+        }
+
+        return $relative;
     }
 }

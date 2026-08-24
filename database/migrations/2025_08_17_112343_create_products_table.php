@@ -14,9 +14,19 @@ return new class extends Migration
         Schema::create('products', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name');
-            $table->foreignId('category_id')->constrained('categories', 'id', 'product_category_id')->onDelete('cascade');
+            $table->string('slug')->unique();
+            $table->text('description')->nullable();
+            $table->text('ingredients')->nullable();
+            $table->foreignId('category_id')
+                ->constrained('categories', 'id', 'product_category_id')
+                ->restrictOnDelete();
             $table->decimal('price', 10, 2)->default(0.00);
+            $table->boolean('is_available')->default(true)->index();
+            $table->unsignedInteger('sort_order')->default(0)->index();
+            $table->softDeletes();
             $table->timestamps();
+
+            $table->index(['category_id', 'is_available', 'sort_order'], 'products_menu_listing_index');
         });
     }
 

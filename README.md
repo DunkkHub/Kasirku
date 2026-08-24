@@ -25,6 +25,7 @@ This is not an online ordering system. Customers browse the menu only: no cart, 
 - Tailwind CSS 4
 - Vite
 - Pest
+- Playwright smoke tests
 
 ## Local setup
 
@@ -35,7 +36,19 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Create the SQLite database if you use the default local driver:
+For local development, change the copied `.env` to development-safe values:
+
+```env
+APP_ENV=local
+APP_DEBUG=true
+APP_URL=http://127.0.0.1:8000
+DB_CONNECTION=sqlite
+DB_DATABASE=database/database.sqlite
+SESSION_SECURE_COOKIE=false
+MAIL_MAILER=log
+```
+
+Create the SQLite database:
 
 ```bash
 php -r "file_exists('database/database.sqlite') || touch('database/database.sqlite');"
@@ -139,15 +152,18 @@ Allowed upload formats:
 - PNG
 - WEBP
 
-Uploads are size- and dimension-limited by Laravel validation.
+Uploads are size- and dimension-limited by Laravel validation, decoded as real images, stripped of metadata by server-side re-encoding, resized when needed, and stored with generated filenames.
 
 ## Useful commands
 
 ```bash
 php artisan test
+php artisan migrate:fresh --seed
 npm run types
 npm run lint
 npm run build
+npx playwright install chromium
+npm run e2e
 composer validate --strict
 composer audit --locked
 npm audit --audit-level=high
@@ -155,6 +171,7 @@ npm audit --audit-level=high
 
 ## Deployment notes
 
+- Full deployment guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - Serve only Laravel’s `public/` directory.
 - Set `APP_ENV=production`, `APP_DEBUG=false`, a real HTTPS `APP_URL`, `SESSION_SECURE_COOKIE=true`, `SESSION_HTTP_ONLY=true`, and `SESSION_SAME_SITE=lax` or stricter.
 - Keep `.env`, database files, uploaded storage internals, logs, and backups outside the public document root.

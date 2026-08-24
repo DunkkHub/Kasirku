@@ -3,10 +3,12 @@ name: tests
 on:
   push:
     branches:
+      - master
       - develop
       - main
   pull_request:
     branches:
+      - master
       - develop
       - main
 
@@ -18,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  backend:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -40,13 +42,93 @@ jobs:
         run: composer validate --strict
 
       - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        run: composer install --no-interaction --no-scripts --prefer-dist --optimize-autoloader
 
-      - name: Copy Environment File
-        run: cp .env.example .env
+      - name: Discover Laravel packages
+        run: composer run-script post-autoload-dump
+
+      - name: Prepare test environment
+        run: |
+          cat > .env <<'EOF'
+          APP_NAME="Teisseire Pizza CI"
+          APP_ENV=testing
+          APP_KEY=
+          APP_DEBUG=false
+          APP_URL=http://127.0.0.1
+          APP_LOCALE=fr
+          APP_FALLBACK_LOCALE=fr
+          APP_FAKER_LOCALE=fr_FR
+          DB_CONNECTION=sqlite
+          DB_DATABASE=database/database.sqlite
+          CACHE_STORE=array
+          SESSION_DRIVER=array
+          QUEUE_CONNECTION=sync
+          MAIL_MAILER=array
+          FILESYSTEM_DISK=public
+          EOF
+          touch database/database.sqlite
 
       - name: Generate Application Key
         run: php artisan key:generate
 
-      - name: Tests
+      - name: Fresh migration and seed smoke
+        run: php artisan migrate:fresh --seed --force
+
+      - name: Laravel tests
         run: php artisan test
+
+      - name: Pint
+        run: vendor/bin/pint --test
+
+      - name: Composer audit
+        run: composer audit --locked
+
+  frontend:
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-scripts --prefer-dist --optimize-autoloader
+
+      - name: Discover Laravel packages
+        run: composer run-script post-autoload-dump
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Check frontend formatting
+        run: npm run format:check
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: TypeScript
+        run: npm run types
+
+      - name: Production build
+        run: npm run build
+
+      - name: Node audit
+        run: npm audit --audit-level=high
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright E2E
+        run: npm run e2e:ci

@@ -32,6 +32,22 @@ test('users can not authenticate with invalid password', function () {
     $this->assertGuest();
 });
 
+test('admin login is rate limited', function () {
+    $user = User::factory()->admin()->withTestPassword('correct-password')->create();
+
+    foreach (range(1, 5) as $attempt) {
+        $this->post('/admin/login', [
+            'email' => $user->email,
+            'password' => 'wrong-password',
+        ])->assertSessionHasErrors('email');
+    }
+
+    $this->post('/admin/login', [
+        'email' => $user->email,
+        'password' => 'wrong-password',
+    ])->assertTooManyRequests();
+});
+
 test('users can logout', function () {
     $user = User::factory()->create();
 

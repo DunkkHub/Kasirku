@@ -3,10 +3,12 @@ name: quality
 on:
   push:
     branches:
+      - master
       - develop
       - main
   pull_request:
     branches:
+      - master
       - develop
       - main
 
@@ -37,7 +39,10 @@ jobs:
           cache: npm
 
       - name: Install PHP dependencies
-        run: composer install --no-interaction --no-progress --prefer-dist
+        run: composer install --no-interaction --no-scripts --no-progress --prefer-dist --optimize-autoloader
+
+      - name: Discover Laravel packages
+        run: composer run-script post-autoload-dump
 
       - name: Install Node dependencies
         run: npm ci
@@ -49,7 +54,7 @@ jobs:
         run: npm run format:check
 
       - name: Lint frontend
-        run: npx eslint . --max-warnings=0
+        run: npm run lint
 
       - name: Check frontend types
         run: npm run types

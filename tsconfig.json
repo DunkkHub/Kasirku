@@ -118,5 +118,7 @@
         "resources/js/**/*.ts",
         "resources/js/**/*.d.ts",
         "resources/js/**/*.tsx",
+        "playwright.config.ts",
+        "tests/e2e/**/*.ts",
     ]
 }

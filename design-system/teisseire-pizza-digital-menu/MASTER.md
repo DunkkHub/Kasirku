@@ -79,7 +79,7 @@ Do not introduce remote placeholder or stock-image dependencies. Uploaded produc
 - Maintain WCAG AA text contrast and visible keyboard focus.
 - Interactive controls must have a 44×44 px minimum target on touch layouts.
 - Use semantic headings, labels, button elements, status roles, and `aria-invalid`/`aria-describedby` for form errors.
-- Do not rely on color alone for selected, error, payment, or order states.
+- Do not rely on color alone for selected, error, unavailable, or disabled states.
 - Validate at 390 px mobile, 768 px tablet, 1024 px small desktop, and 1440 px desktop.
 - Fixed navigation controls must not cover content; horizontal page scrolling is prohibited.
 
