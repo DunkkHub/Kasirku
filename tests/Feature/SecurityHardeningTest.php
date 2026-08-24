@@ -34,17 +34,43 @@ test('anonymous visitors are redirected to the dedicated admin login for admin u
 });
 
 test('web responses include browser hardening headers', function () {
-    $this->get('/')
+    $response = $this->get('/')
         ->assertOk()
         ->assertHeader('X-Content-Type-Options', 'nosniff')
         ->assertHeader('X-Frame-Options', 'DENY')
         ->assertHeader('X-Permitted-Cross-Domain-Policies', 'none')
         ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
-        ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-        ->assertHeader(
-            'Content-Security-Policy',
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; form-action 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'"
-        );
+        ->assertHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+    $csp = (string) $response->headers->get('Content-Security-Policy');
+
+    expect($csp)
+        ->toContain("default-src 'self'")
+        ->toContain("style-src 'self' 'unsafe-inline'")
+        ->toContain("img-src 'self' data: blob:")
+        ->toContain("font-src 'self' data:")
+        ->toContain("connect-src 'self'")
+        ->toContain("form-action 'self'")
+        ->toContain("base-uri 'self'")
+        ->toContain("frame-ancestors 'none'")
+        ->toContain("object-src 'none'")
+        ->not->toContain("'unsafe-eval'");
+
+    expect(preg_match("/script-src 'self' 'nonce-([^']+)'/", $csp, $matches))->toBe(1);
+    expect($matches[0])->not->toContain("'unsafe-inline'");
+    $response->assertSee('nonce="'.$matches[1].'"', false);
+});
+
+test('production https responses include hsts', function () {
+    $this->app->detectEnvironment(fn () => 'production');
+
+    try {
+        $this->get('https://localhost/')
+            ->assertOk()
+            ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    } finally {
+        $this->app->detectEnvironment(fn () => 'testing');
+    }
 });
 
 test('authenticated admin responses are not browser cached', function () {

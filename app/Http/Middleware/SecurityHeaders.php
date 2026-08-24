@@ -4,12 +4,17 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Vite;
 use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
     {
+        $nonce = Vite::useCspNonce();
+        View::share('cspNonce', $nonce);
+
         /** @var Response $response */
         $response = $next($request);
         $response->headers->set('X-Content-Type-Options', 'nosniff');
@@ -18,7 +23,7 @@ class SecurityHeaders
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
-        $scriptSrc = "'self' 'unsafe-inline'";
+        $scriptSrc = "'self' 'nonce-{$nonce}'";
         $connectSrc = "'self'";
 
         if (app()->environment('local')) {

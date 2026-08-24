@@ -177,8 +177,22 @@ class ProductController extends Controller
 
     public function destroy(Product $product): RedirectResponse
     {
-        $product->update(['is_available' => false]);
-        $product->delete();
+        $filesToDelete = [];
+
+        DB::transaction(function () use ($product, &$filesToDelete): void {
+            foreach ($product->photos()->get() as $photo) {
+                $file = $this->storagePathFromUrl($photo->url, 'products');
+                if ($file) {
+                    $filesToDelete[] = $file;
+                }
+                $photo->delete();
+            }
+
+            $product->update(['is_available' => false]);
+            $product->delete();
+        }, 3);
+
+        Storage::disk('public')->delete($filesToDelete);
 
         return redirect()->route('products.index')->with('success', 'Plat supprimé de la carte.');
     }

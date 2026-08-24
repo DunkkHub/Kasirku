@@ -166,12 +166,17 @@ test('admin can toggle product availability', function () {
 });
 
 test('admin can delete a menu item', function () {
+    Storage::fake('public');
     $this->actingAs(User::factory()->admin()->create());
     $product = Product::factory()->create();
+    $photo = ProductPhotos::factory()->create(['product_id' => $product->id, 'url' => Storage::url('products/deleted.jpg')]);
+    Storage::disk('public')->put('products/deleted.jpg', 'fake-content');
 
     $response = $this->delete("/admin/menu/{$product->id}");
 
     $response->assertRedirect(route('products.index'));
     $this->assertSoftDeleted('products', ['id' => $product->id]);
+    $this->assertDatabaseMissing('product_photos', ['id' => $photo->id]);
+    Storage::disk('public')->assertMissing('products/deleted.jpg');
     expect($product->fresh()->is_available)->toBeFalse();
 });

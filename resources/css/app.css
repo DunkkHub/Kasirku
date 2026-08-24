@@ -154,6 +154,10 @@
         @apply border-border;
     }
 
+    html {
+        background-color: var(--background);
+    }
+
     body {
         @apply bg-background text-foreground;
     }
