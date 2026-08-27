@@ -2,7 +2,7 @@
 
 Laravel + Inertia + React + TypeScript application for a QR-code restaurant menu and a small protected admin CMS.
 
-This is not an online ordering system. Customers browse the menu only: no cart, checkout, payment, delivery request, pickup request, receipt, printer, cashier, or POS workflow is exposed.
+Customers browse the menu only. Public routes do not mutate menu data or create customer transactions; all content management lives behind the administrator area.
 
 ## Features
 
@@ -10,8 +10,8 @@ This is not an online ordering system. Customers browse the menu only: no cart, 
 - Mobile-first dark Teisseire Pizza design with sticky horizontal category navigation.
 - Fast client-side search by dish name, ingredients, description, or category.
 - Editable restaurant settings: logo, Halal indicator, tagline, description, phone, address, hours, currency symbol/position, pizza-size text, and social/map links.
-- Editable categories: name, description, cover image, active/disabled status, and display order.
-- Editable menu items through the existing `products` architecture: image uploads, ingredients, description, price, availability, and display order.
+- Editable categories: name, description, cover image, active/disabled status, and display position.
+- Editable menu items through the existing `products` architecture: image uploads, ingredients, description, price, availability, and display position.
 - Unavailable dishes remain visible on the public menu with an “Indisponible” state.
 - Disabled categories are hidden from the public menu.
 - Admin area is protected by a dedicated `/admin/login` flow, verified email, and the `is_admin` authorization gate.
@@ -178,3 +178,4 @@ npm audit --audit-level=high
 - Keep public registration disabled; create administrators through the controlled `ADMIN_*` seeder flow only.
 - Keep `FILESYSTEM_SERVE_LOCAL=false` unless you intentionally need Laravel signed local-disk file serving.
 - Back up the database and uploaded menu/category/restaurant images.
+- Suggested GitHub About description: `Digital menu and protected menu-management CMS for Teisseire Pizza.`

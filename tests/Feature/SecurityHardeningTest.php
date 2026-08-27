@@ -23,6 +23,12 @@ test('a verified non-admin account cannot enter the administration area', functi
     $this->actingAs($user)->put('/admin/settings', [])->assertForbidden();
 });
 
+test('an unverified admin must verify email before entering the administration area', function () {
+    $user = User::factory()->admin()->unverified()->create();
+
+    $this->actingAs($user)->get('/admin')->assertRedirect('/admin/verify-email');
+});
+
 test('anonymous visitors are redirected to the dedicated admin login for admin urls', function () {
     $product = Product::factory()->create();
 
@@ -31,6 +37,16 @@ test('anonymous visitors are redirected to the dedicated admin login for admin u
     $this->get('/admin/categories')->assertRedirect('/admin/login');
     $this->get('/admin/settings')->assertRedirect('/admin/login');
     $this->post('/admin/menu', [])->assertRedirect('/admin/login');
+});
+
+test('health endpoint is public and does not expose diagnostics', function () {
+    $response = $this->get('/up')->assertOk();
+    $content = strtolower($response->getContent());
+
+    expect($content)
+        ->not->toContain('app_key')
+        ->not->toContain('database')
+        ->not->toContain(strtolower(base_path()));
 });
 
 test('web responses include browser hardening headers', function () {

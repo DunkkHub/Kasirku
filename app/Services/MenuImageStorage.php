@@ -4,9 +4,11 @@ namespace App\Services;
 
 use GdImage;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class MenuImageStorage
 {
@@ -93,11 +95,30 @@ class MenuImageStorage
             $this->fail($attribute, 'Impossible de lire l’image optimisée.');
         }
 
+        $stored = false;
+
         try {
-            Storage::disk($disk)->put($storedPath, $stream);
+            $stored = Storage::disk($disk)->put($storedPath, $stream);
+        } catch (Throwable $exception) {
+            Log::warning('Menu image storage failed.', [
+                'disk' => $disk,
+                'directory' => trim($directory, '/'),
+                'reason' => get_class($exception),
+            ]);
+
+            $this->fail($attribute, 'Impossible d’enregistrer l’image.');
         } finally {
             fclose($stream);
             @unlink($temporaryPath);
+        }
+
+        if ($stored !== true) {
+            Log::warning('Menu image storage returned an unsuccessful write result.', [
+                'disk' => $disk,
+                'directory' => trim($directory, '/'),
+            ]);
+
+            $this->fail($attribute, 'Impossible d’enregistrer l’image.');
         }
 
         return $storedPath;

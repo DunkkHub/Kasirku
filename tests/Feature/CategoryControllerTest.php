@@ -3,8 +3,10 @@
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\MenuImageStorage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 test('guests cannot access category management', function () {
     $this->get('/admin/categories')->assertRedirect('/admin/login');
@@ -98,6 +100,44 @@ test('admin can update visibility and display order', function () {
         'sort_order' => 9,
         'is_active' => false,
     ]);
+});
+
+test('category image replacement failure keeps the old image and database value', function () {
+    Storage::fake('public');
+    $this->actingAs(User::factory()->admin()->create());
+
+    $category = Category::factory()->create([
+        'name' => 'Ancienne catégorie',
+        'image' => Storage::url('categories/existing.jpg'),
+    ]);
+    Storage::disk('public')->put('categories/existing.jpg', 'existing-content');
+
+    $this->app->bind(MenuImageStorage::class, fn () => new class extends MenuImageStorage
+    {
+        public function store(
+            UploadedFile $file,
+            string $directory,
+            string $attribute = 'image',
+            int $maxWidth = 1600,
+            int $maxHeight = 1600,
+            int $quality = 82,
+            string $disk = 'public',
+        ): string {
+            throw ValidationException::withMessages([$attribute => 'Impossible d’enregistrer l’image.']);
+        }
+    });
+
+    $this->from('/admin/categories')->post("/admin/categories/{$category->id}", [
+        '_method' => 'PUT',
+        'name' => 'Nouvelle catégorie',
+        'description' => 'Nouvelle description',
+        'sort_order' => 2,
+        'is_active' => true,
+        'image' => UploadedFile::fake()->image('replacement.png'),
+    ])->assertSessionHasErrors('image');
+
+    expect($category->fresh()->image)->toBe(Storage::url('categories/existing.jpg'));
+    Storage::disk('public')->assertExists('categories/existing.jpg');
 });
 
 test('deleting a category without products succeeds', function () {

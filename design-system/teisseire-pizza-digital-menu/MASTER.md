@@ -51,7 +51,7 @@ Orange is reserved for actions, active navigation, progress, prices, and short e
 3. Review imagery, ingredients, descriptions, prices, and unavailable states.
 4. Use the address, hours, and phone contact to reach the restaurant outside the website.
 
-The public website is intentionally read-only: it must not expose cart, checkout, delivery request, pickup request, payment, receipt, cashier, or online order controls. The protected administration area is a small CMS for Menu, Categories, and Restaurant Settings only.
+The public website is intentionally read-only. It shows restaurant content and contact details only; content changes belong in the protected administration area for Menu, Categories, and Restaurant Settings.
 
 ## Motion
 
@@ -86,7 +86,7 @@ Do not introduce remote placeholder or stock-image dependencies. Uploaded produc
 ## Release checklist
 
 - Customer, login, dashboard, menu, categories, and restaurant settings use Teisseire vocabulary and currency formatting.
-- No cart, checkout, delivery-request, pickup-request, payment, receipt, cashier, or online-order controls appear on the customer menu or admin navigation.
+- No customer transaction or fulfillment controls appear on the customer menu or admin navigation.
 - No disabled-registration link appears on login.
 - Product photos have a local fallback and useful alternative text.
 - Loading, empty, validation, unavailable, and disabled-category states remain legible.

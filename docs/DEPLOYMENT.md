@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-This application is a public digital restaurant menu plus a protected admin CMS. It is not a POS, checkout, payment, delivery, or printer system.
+This application is a public digital restaurant menu plus a protected admin CMS for restaurant settings, categories, dishes, and menu images.
 
 The examples below assume a standard Ubuntu/Debian VPS with Nginx, PHP-FPM, MySQL or PostgreSQL, HTTPS via Let’s Encrypt, and Node.js available only during the build step.
 
@@ -13,21 +13,33 @@ The examples below assume a standard Ubuntu/Debian VPS with Nginx, PHP-FPM, MySQ
 - Nginx.
 - Certbot or another ACME client for HTTPS.
 
-## 2. Clone and install
+## 2. Before deployment
+
+- Identify the exact Git commit SHA or release tag that will be deployed.
+- Confirm the release gate passes locally or in CI: Composer validation, Laravel tests, Pint, frontend formatting, ESLint, TypeScript, production build, dependency audits, and Playwright.
+- Confirm `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL` is the canonical HTTPS URL, and `SESSION_SECURE_COOKIE=true`.
+- Back up the production database.
+- Back up uploaded menu/category/restaurant images or verify the persistent volume/object-storage disk that contains them.
+- Confirm the web server document root is the repository `public/` directory.
+- Plan a short maintenance window if the migration or asset switch could affect visitors.
+
+## 3. Clone and install
 
 ```bash
 cd /var/www
 git clone https://github.com/DunkkHub/Kasirku.git teisseire-menu
 cd /var/www/teisseire-menu
+git fetch --all --tags
+git switch --detach <intended-commit-sha>
 
-composer install --no-dev --prefer-dist --optimize-autoloader
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 npm ci
 npm run build
 ```
 
 Node is not required at runtime after assets are built.
 
-## 3. Environment file
+## 4. Environment file
 
 ```bash
 cp .env.example .env
@@ -68,7 +80,7 @@ TRUSTED_PROXIES=127.0.0.1,10.0.0.0/8
 
 Do not set `TRUSTED_PROXIES=*` unless the network path is fully controlled.
 
-## 4. Database
+## 5. Database
 
 Create a dedicated database and a least-privilege user. The app does not need root database access.
 
@@ -90,7 +102,7 @@ php artisan db:seed --class=CategorySeeder --force
 php artisan db:seed --class=ProductSeeder --force
 ```
 
-## 5. Create the first administrator
+## 6. Create the first administrator
 
 Public registration is not exposed. Create an admin through one-time environment variables:
 
@@ -108,7 +120,7 @@ php artisan db:seed --class=UserSeeder --force
 
 Immediately remove `ADMIN_PASSWORD` from `.env` after the account exists.
 
-## 6. Storage
+## 7. Storage
 
 Uploaded restaurant/category/product images use Laravel’s public disk.
 
@@ -126,7 +138,28 @@ sudo find storage bootstrap/cache -type f -exec chmod 664 {} \;
 
 For ephemeral infrastructure, use persistent attached storage or an S3-compatible disk for uploaded menu images.
 
-## 7. Laravel optimization
+## 8. Deployment sequence
+
+For an already configured server, use this sequence from the intended release directory:
+
+```bash
+php artisan down
+git fetch --all --tags
+git switch --detach <intended-commit-sha>
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+npm ci
+npm run build
+php artisan migrate --force
+php artisan storage:link
+php artisan optimize
+sudo systemctl reload php8.2-fpm
+sudo systemctl reload nginx
+php artisan up
+```
+
+`php artisan storage:link` is normally a one-time setup command. It is safe to include in a deployment runbook, but persistent uploaded files must live in `storage/app/public` or an equivalent configured persistent disk.
+
+## 9. Laravel optimization
 
 After `.env`, dependencies, migrations, seeders, and build assets are ready:
 
@@ -153,7 +186,7 @@ curl -I https://your-domain.example/up
 
 The health endpoint must return success without exposing secrets.
 
-## 8. Nginx example
+## 10. Nginx example
 
 Replace `your-domain.example`, PHP-FPM socket/version, and paths for your server.
 
@@ -218,7 +251,7 @@ server {
 
 The document root must be `public/`, never the repository root.
 
-## 9. Backups
+## 11. Backups
 
 Back up both database data and uploaded images.
 
@@ -255,27 +288,49 @@ php artisan optimize
 php artisan up
 ```
 
-## 10. Rollback
+## 12. Post-deploy smoke tests
 
-Keep the previous release commit available.
+Check after every deployment:
+
+- `GET /up` returns a success status without exposing diagnostics.
+- Public menu loads at `/`.
+- Built CSS/JS assets load without 404s.
+- Seeded and uploaded images render.
+- Admin login loads and accepts a real administrator account.
+- Menu/category create, update, validation error, and delete flows work.
+- Restaurant settings save successfully.
+- Logout invalidates the admin session.
+- Application logs contain no new unexpected errors.
+
+## 13. Rollback
+
+Keep the previous known-good release commit and matching backups available. Restoring older application files does not automatically restore an older database schema or data.
 
 ```bash
 php artisan down
 git fetch --all
-git checkout <previous-known-good-commit>
-composer install --no-dev --prefer-dist --optimize-autoloader
+git switch --detach <previous-known-good-commit>
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
 npm ci
 npm run build
-php artisan migrate --force
 php artisan optimize
 sudo systemctl reload php8.2-fpm
 sudo systemctl reload nginx
 php artisan up
 ```
 
-If a migration is not safely reversible, restore the database backup that matches the previous release.
+Safe rollback process:
 
-## 11. Pre-release verification
+1. Identify the previous known-good application release.
+2. Restore that application release.
+3. If database schema/data changed incompatibly, restore the pre-deploy database backup or use an explicitly tested reversible migration strategy.
+4. Restore or verify uploaded assets if required.
+5. Clear and rebuild Laravel caches.
+6. Perform the post-deploy smoke tests again.
+
+Tie every backup and release artifact to the Git commit SHA or release identifier so the application files, database, and uploaded images can be matched during recovery.
+
+## 14. Pre-release verification
 
 Run these before promoting a release:
 
