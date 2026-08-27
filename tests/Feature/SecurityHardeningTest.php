@@ -4,6 +4,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
 
 test('a verified non-admin account cannot enter the administration area', function () {
     $user = User::factory()->create();
@@ -78,10 +79,12 @@ test('web responses include browser hardening headers', function () {
 });
 
 test('production https responses include hsts', function () {
+    Route::middleware('web')->get('/__security-headers/hsts', fn () => response('ok'));
+
     $this->app->detectEnvironment(fn () => 'production');
 
     try {
-        $this->get('https://localhost/')
+        $this->get('https://localhost/__security-headers/hsts')
             ->assertOk()
             ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     } finally {
