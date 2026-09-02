@@ -172,6 +172,7 @@ npm audit --audit-level=high
 ## Deployment notes
 
 - Full deployment guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+- Free Windows 11 self-hosting with FrankenPHP and Tailscale Funnel: [docs/WINDOWS_SELF_HOSTING.md](docs/WINDOWS_SELF_HOSTING.md).
 - Serve only Laravel’s `public/` directory.
 - Set `APP_ENV=production`, `APP_DEBUG=false`, a real HTTPS `APP_URL`, `SESSION_SECURE_COOKIE=true`, `SESSION_HTTP_ONLY=true`, and `SESSION_SAME_SITE=lax` or stricter.
 - Keep `.env`, database files, uploaded storage internals, logs, and backups outside the public document root.

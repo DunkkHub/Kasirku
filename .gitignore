@@ -7,8 +7,11 @@
 /public/images/teisseire-pizza-hero.png
 /playwright-report
 /test-results
+/backups
 /storage/*.key
+/storage/app/windows-production-server.pid
 /storage/pail
+/storage/logs/frankenphp*.log
 /vendor
 /work
 .env

@@ -1,0 +1,16 @@
+{
+    auto_https off
+    admin off
+}
+
+:{$LOCAL_SERVER_PORT:8000} {
+    bind 127.0.0.1
+
+    root * public
+    encode zstd br gzip
+    php_server
+
+    header {
+        -Server
+    }
+}
