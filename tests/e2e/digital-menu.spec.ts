@@ -90,7 +90,12 @@ test('admin authentication rejects invalid and non-admin users', async ({ page }
     await expect(page.getByText('Ces identifiants ne correspondent pas à nos enregistrements.')).toBeVisible();
 });
 
-test('admin can manage categories, products, images, price, availability, and logout', async ({ page }) => {
+test('admin can manage categories, products, images, price, availability, and logout', async ({ page }, testInfo) => {
+    const runSuffix = `${Date.now()}-${testInfo.retry}`;
+    const categoryName = `E2E Catégorie ${runSuffix}`;
+    const productName = `Pizza E2E ${runSuffix}`;
+    const productCardName = `Plat ${productName}`;
+
     await login(page, adminEmail, adminPassword);
     await expect(page).toHaveURL(/\/admin$/);
     await expect(page.getByRole('heading', { name: 'Gérez simplement la carte de Teisseire Pizza.' })).toBeVisible();
@@ -98,17 +103,18 @@ test('admin can manage categories, products, images, price, availability, and lo
     await page.goto('/admin/categories');
     await page.getByRole('button', { name: 'Ajouter une catégorie' }).click();
     const categoryDialog = page.getByRole('dialog', { name: 'Ajouter une catégorie' });
-    await categoryDialog.getByPlaceholder('Pizza Base Tomate').fill('E2E Catégorie');
+    await categoryDialog.getByPlaceholder('Pizza Base Tomate').fill(categoryName);
     await categoryDialog.getByPlaceholder('Nos pizzas artisanales Ø33cm...').fill('Catégorie créée par Playwright');
     await categoryDialog.getByRole('button', { name: 'Enregistrer' }).click();
-    await expect(page.getByText('E2E Catégorie')).toBeVisible();
+    await expect(categoryDialog).toBeHidden();
+    await expect(page.getByText(categoryName)).toBeVisible();
 
     await page.goto('/admin/menu');
     await page.getByRole('button', { name: 'Ajouter un plat' }).click();
     const productDialog = page.getByRole('dialog', { name: 'Ajouter un plat' });
-    await productDialog.getByPlaceholder('Ex. Marguarita').fill('Pizza E2E');
+    await productDialog.getByPlaceholder('Ex. Marguarita').fill(productName);
     await productDialog.getByText('Sélectionner une catégorie').click();
-    await page.getByRole('option', { name: 'E2E Catégorie' }).click();
+    await page.getByRole('option', { name: categoryName, exact: true }).click();
     await productDialog.getByPlaceholder('Emmental, Mozza, Champignons').fill('Mozza, Basilic');
     await productDialog.getByPlaceholder('Texte libre pour les formules, gratins ou précisions.').fill('Créée par le test E2E');
     await productDialog.getByPlaceholder('10.50').fill('12.50');
@@ -118,18 +124,24 @@ test('admin can manage categories, products, images, price, availability, and lo
         buffer: tinyPng,
     });
     await productDialog.getByRole('button', { name: 'Enregistrer' }).click();
-    let productCard = page.getByRole('article', { name: 'Plat Pizza E2E' });
+    await expect(productDialog).toBeHidden();
+    let productCard = page.getByRole('article', { name: productCardName, exact: true });
+    await expect(productCard).toHaveCount(1);
     await expect(productCard).toBeVisible();
     await expect(productCard.getByText('12,50 €')).toBeVisible();
 
-    await page.getByPlaceholder('Rechercher par nom, ingrédient, description...').fill('Pizza E2E');
-    productCard = page.getByRole('article', { name: 'Plat Pizza E2E' });
+    await page.getByPlaceholder('Rechercher par nom, ingrédient, description...').fill(productName);
+    productCard = page.getByRole('article', { name: productCardName, exact: true });
+    await expect(productCard).toHaveCount(1);
     await expect(productCard).toBeVisible();
     await productCard.getByRole('button', { name: 'Modifier' }).click();
     const editDialog = page.getByRole('dialog', { name: 'Modifier le plat' });
+    await expect(editDialog).toBeVisible();
     await editDialog.getByPlaceholder('10.50').fill('13.50');
     await editDialog.getByRole('button', { name: 'Enregistrer' }).click();
-    productCard = page.getByRole('article', { name: 'Plat Pizza E2E' });
+    await expect(editDialog).toBeHidden();
+    productCard = page.getByRole('article', { name: productCardName, exact: true });
+    await expect(productCard).toHaveCount(1);
     await expect(productCard.getByText('13,50 €')).toBeVisible();
 
     await productCard.getByRole('button', { name: /Masquer/ }).click();
